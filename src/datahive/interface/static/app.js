@@ -446,7 +446,9 @@ async function selectEpisode(episodeId) {
                 ${STRATEGIES.map((s) => `<option value="${s}" ${s === ann.strategy ? "selected" : ""}>${humanize(s)}</option>`).join("")}
               </select>
             </label>
-            <label class="full">Notes <textarea name="notes">${ann.notes || ""}</textarea></label>
+            <label class="full">Notes
+              <textarea name="notes" placeholder="Anything else worth recording about this trial…">${ann.notes || ""}</textarea>
+            </label>
           </div>
         </fieldset>
       </form>

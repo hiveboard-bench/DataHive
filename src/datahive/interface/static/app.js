@@ -34,14 +34,21 @@ const TOAST_ICONS = {
   success: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>',
 };
 
+function escapeHtml(str) {
+  const div = document.createElement("div");
+  div.textContent = str;
+  return div.innerHTML;
+}
+
 function showToast(message, { type = "error", title, timeout = 7000 } = {}) {
   const toast = document.createElement("div");
   toast.className = `toast ${type}`;
+  const bodyHtml = escapeHtml(message).replace(/\n/g, "<br>");
   toast.innerHTML = `
     <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${TOAST_ICONS[type] || TOAST_ICONS.error}</svg>
     <div class="toast-body">
       ${title ? `<div class="toast-title">${title}</div>` : ""}
-      <div>${message}</div>
+      <div>${bodyHtml}</div>
     </div>
     <button class="toast-close" aria-label="Dismiss">✕</button>
   `;
@@ -214,10 +221,16 @@ async function selectEpisode(episodeId) {
       const result = await api(`/api/episodes/${episodeId}/validate`, {
         method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
       });
-      msg.textContent = result.ok ? "Saved and validated." : `Saved, but validation failed: ${result.error}`;
+      if (result.ok) {
+        msg.textContent = "Saved and validated.";
+      } else {
+        msg.textContent = "Saved, but validation failed.";
+        showToast(result.error, { type: "error", title: `Validation failed: ${episodeId}`, timeout: 12000 });
+      }
       await selectEpisode(episodeId);
     } catch (err) {
       msg.textContent = `Error: ${err.message}`;
+      showToast(err.message, { type: "error", title: "Save failed" });
     }
   });
 

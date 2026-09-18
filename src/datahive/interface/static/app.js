@@ -347,6 +347,17 @@ function renderHeader(header) {
   return `<dl class="header-fields">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v ?? "–"}</dd>`).join("")}</dl>`;
 }
 
+function cameraTooltipText(spec) {
+  if (!spec) return "No metadata recorded";
+  const lines = [];
+  if (spec.resolution) lines.push(`Resolution: ${spec.resolution}`);
+  if (spec.fps != null && spec.fps !== "") lines.push(`FPS: ${spec.fps}`);
+  if (spec.encoding) lines.push(`Encoding: ${spec.encoding}`);
+  if (spec.position) lines.push(`Position: ${spec.position}`);
+  if (spec.orientation) lines.push(`Orientation: ${spec.orientation}`);
+  return lines.length ? lines.join("\n") : "No metadata recorded";
+}
+
 async function selectEpisode(episodeId) {
   selectedId = episodeId;
   await refreshList();
@@ -395,11 +406,21 @@ async function selectEpisode(episodeId) {
       <div class="pane camera-pane">
         <h3>Cameras</h3>
         <div class="camera-grid">
-          ${data.cameras.map((c) => `
+          ${data.cameras.map((c) => {
+            const spec = (data.header.cameras || []).find((cam) => cam.name === c) || null;
+            const tooltip = cameraTooltipText(spec);
+            return `
             <div class="camera-card">
-              <div class="cam-name">${c}</div>
+              <div class="cam-name">
+                <svg class="cam-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 7l-7 5 7 5V7z"></path><rect x="1" y="5" width="15" height="14" rx="2" ry="2"></rect></svg>
+                <span>${c}</span>
+                <span class="info-icon" data-tooltip="${escapeHtml(tooltip)}" tabindex="0">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
+                </span>
+              </div>
               <video controls src="/api/episodes/${episodeId}/video/${c}"></video>
-            </div>`).join("") || "<p class=\"empty-hint\">No videos recorded.</p>"}
+            </div>`;
+          }).join("") || "<p class=\"empty-hint\">No videos recorded.</p>"}
         </div>
       </div>
 

@@ -748,6 +748,7 @@ async function selectEpisode(episodeId) {
             <label class="full">Outcome
               ${segmentedControlHtml("outcome", OUTCOMES, outcome, OUTCOME_MEANINGS)}
             </label>
+            <hr class="field-divider">
             <div id="restFields" style="${outcome ? "" : "display:none"}">
               <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">Failure cause
                 <select name="failure_cause">

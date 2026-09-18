@@ -761,6 +761,7 @@ async function selectEpisode(episodeId) {
               <label id="severityField" class="full" style="${outcome === "success" ? "display:none" : ""}">Severity
                 ${segmentedControlHtml("severity", SEVERITIES, ann.severity)}
               </label>
+              <hr id="successDivider" class="field-divider" style="${outcome === "success" ? "" : "display:none"}">
               <label id="completionTimeField" style="${outcome !== "success" ? "display:none" : ""}">Completion time
                 <input value="${formatDuration(stats.duration_s)}" disabled>
               </label>
@@ -842,6 +843,7 @@ async function selectEpisode(episodeId) {
     document.getElementById("failureCauseField").style.display = isSuccess ? "none" : "";
     document.getElementById("outcomeDivider").style.display = isSuccess ? "none" : "";
     document.getElementById("severityField").style.display = isSuccess ? "none" : "";
+    document.getElementById("successDivider").style.display = isSuccess ? "" : "none";
     document.getElementById("completionTimeField").style.display = isSuccess ? "" : "none";
     updateFailureCauseDetailVisibility();
   });

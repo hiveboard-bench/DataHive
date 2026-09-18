@@ -304,7 +304,7 @@ fieldset legend {
 .field-grid label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.95rem; font-weight: 600; color: var(--muted); }
 .field-grid label input, .field-grid label select, .field-grid label textarea { color: var(--fg); }
 .field-grid label.full { grid-column: 1 / -1; }
-.field-grid input, .field-grid select { padding: 0.32rem 0.5rem; }
+.field-grid input, .field-grid select { padding: 0.65rem 0.7rem; }
 .field-grid textarea { padding: 0.5rem 0.6rem; min-height: 4.5rem; resize: vertical; }
 .field-grid textarea::placeholder { color: var(--muted); opacity: 0.75; }
 

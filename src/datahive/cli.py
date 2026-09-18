@@ -44,13 +44,20 @@ def init(
     repo_id: Optional[str] = typer.Option(None, help="Defaults to sua-org/{lab_id}"),
     token: str = typer.Option(..., prompt=True, hide_input=True, help="Hugging Face token"),
     endpoint: Optional[str] = typer.Option(None, help="Custom HF endpoint (advanced)"),
+    config_dir: Optional[str] = typer.Option(
+        None, "--config-dir",
+        help="Directory holding config.yaml (overrides $DATAHIVE_CONFIG_HOME for this "
+        "invocation; robot profiles are unaffected)",
+    ),
     no_verify: bool = typer.Option(False, "--no-verify", help="Skip the whoami() check"),
     force: bool = typer.Option(False, "--force"),
 ):
-    """One-time setup: writes ~/.datahive/config.yaml (0600, never inside a git repo).
-    platform_id isn't asked here -- it belongs to robot_profile.yaml (set
-    once per rig via `datahive new-profile`), not to the lab-wide Hub
-    config."""
+    """Set up the lab config (lab id + Hugging Face token)."""
+    if config_dir:
+        import os
+
+        os.environ["DATAHIVE_CONFIG_HOME"] = config_dir
+
     target = config_path()
     if target.exists() and not force:
         typer.echo(f"Config already exists at {target}. Pass --force to overwrite.", err=True)

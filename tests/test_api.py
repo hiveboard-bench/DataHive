@@ -332,6 +332,33 @@ def test_status_when_not_configured(samples_root):
     assert body["connected"] is False
 
 
+def test_last_annotation_copies_from_the_most_recent_other_episode(samples_root):
+    profile = _fill_profile(samples_root)
+    make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile)
+    make_episode(samples_root, "sess1", "ep2", trial_id="t2", profile=profile)
+    client = _client(samples_root)
+
+    # No annotations yet anywhere.
+    resp = client.get("/api/episodes/ep2/last-annotation")
+    assert resp.status_code == 404
+
+    client.post(
+        "/api/episodes/ep1/annotate",
+        json={"attachment_id": "valve_ball", "operator_name": "Alex", "outcome": "success", "strategy": "prehensile"},
+    )
+
+    # ep2 copies ep1's annotation...
+    resp = client.get("/api/episodes/ep2/last-annotation")
+    assert resp.status_code == 200
+    row = resp.json()
+    assert row["operator_name"] == "Alex"
+    assert row["outcome"] == "success"
+
+    # ...but ep1 itself is excluded from its own "previous annotation" search.
+    resp = client.get("/api/episodes/ep1/last-annotation")
+    assert resp.status_code == 404
+
+
 def test_status_when_connected(samples_root, fake_hub, monkeypatch):
     from datahive import ops
 

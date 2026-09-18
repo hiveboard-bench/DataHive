@@ -122,6 +122,13 @@ def build_router(samples_root: Path) -> APIRouter:
 
         return {"results": bulk_validate_episodes(samples_root, payload.episode_ids)}
 
+    @router.get("/api/episodes/{episode_id}/last-annotation")
+    def get_last_annotation_route(episode_id: str):
+        row = ops.get_last_annotation(samples_root, exclude_episode_id=episode_id)
+        if row is None:
+            raise HTTPException(404, "No previous annotation found.")
+        return row
+
     @router.get("/api/episodes/{episode_id}")
     def get_episode(episode_id: str):
         try:

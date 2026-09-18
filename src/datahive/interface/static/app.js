@@ -102,6 +102,18 @@ function wireSegmentedControls(form) {
   });
 }
 
+// Sets a segmented control's value programmatically (e.g. "Copy from
+// previous") -- same active-state + hidden-input + segmentchange effects
+// a real click would have, without needing to fake a click event.
+function setSegmentedValue(form, name, value) {
+  const group = form.querySelector(`.segmented[data-name="${name}"]`);
+  if (!group) return;
+  const v = value || "";
+  form.elements[name].value = v;
+  group.querySelectorAll(".segment").forEach((b) => b.classList.toggle("active", b.dataset.value === v));
+  group.dispatchEvent(new Event("segmentchange", { bubbles: true }));
+}
+
 // "Stage reached" as a segmented control of the selected task's actual
 // stage names (0 = "Not started") when the task has stages recorded;
 // falls back to a plain number input when it doesn't (unknown task, or
@@ -655,7 +667,13 @@ async function selectEpisode(episodeId) {
       </div>
 
       <div class="pane annotate-pane">
-      <h3>Annotate</h3>
+      <div class="pane-header">
+        <h3>Annotate</h3>
+        <button type="button" id="copyPrevBtn" class="btn-icon" title="Copy from the most recently annotated episode">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
+          <span>Copy from previous</span>
+        </button>
+      </div>
       <form class="validate-form" id="annForm">
         <fieldset>
           <div class="field-grid">
@@ -762,6 +780,45 @@ async function selectEpisode(episodeId) {
 
   document.getElementById("taskPickerBtn").addEventListener("click", () => {
     openTaskPicker(attachments, form.attachment_id.value, applyTaskSelection);
+  });
+
+  function applyAnnotationRow(row) {
+    form.operator_name.value = row.operator_name || "";
+    form.annotator_name.value = row.annotator_name || "";
+    if (row.attachment_id) applyTaskSelection(row.attachment_id);
+
+    // Dispatches "segmentchange", which the outcome listener below already
+    // uses to reveal #restFields and show/hide failure cause / severity /
+    // completion time -- no need to duplicate that here.
+    setSegmentedValue(form, "outcome", row.outcome);
+
+    form.failure_cause.value = row.failure_cause || "";
+    form.failure_cause_detail.value = row.failure_cause_detail || "";
+    setSegmentedValue(form, "severity", row.severity);
+    form.n_attempts.value = row.n_attempts || 1;
+    form.n_regrasps.value = row.n_regrasps || 0;
+    setSegmentedValue(form, "strategy", row.strategy);
+    form.notes.value = row.notes || "";
+    updateFailureCauseDetailVisibility();
+
+    // Stage reached depends on the (just-selected) task -- set it after
+    // applyTaskSelection() has rebuilt the field for that task's stages.
+    if (document.querySelector('#stageFieldBody .segmented[data-name="stage_reached"]')) {
+      setSegmentedValue(form, "stage_reached", row.stage_reached);
+    } else {
+      const stageNum = document.querySelector('#stageFieldBody input[name="stage_reached"]');
+      if (stageNum) stageNum.value = row.stage_reached || "";
+    }
+  }
+
+  document.getElementById("copyPrevBtn").addEventListener("click", async () => {
+    try {
+      const row = await api(`/api/episodes/${episodeId}/last-annotation`);
+      applyAnnotationRow(row);
+      showToast("Copied from a previous annotation.", { type: "success", timeout: 3000 });
+    } catch (err) {
+      showToast(err.message, { type: "error", title: "Nothing to copy" });
+    }
   });
 
   function collectAnnotationPayload() {

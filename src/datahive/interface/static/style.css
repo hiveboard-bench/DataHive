@@ -295,6 +295,9 @@ dl.kv-list dd { margin: 0; word-break: break-word; }
   letter-spacing: 0.04em;
   color: var(--muted);
 }
+.pane-header { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.85rem; }
+.pane-header h3 { margin-bottom: 0; }
+.pane-header .btn-icon { font-size: 0.78rem; padding: 0.3rem 0.6rem; }
 
 .camera-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
 .camera-card { padding: 0; }

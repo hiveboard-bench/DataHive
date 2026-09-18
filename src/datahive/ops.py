@@ -14,8 +14,8 @@ from datahive.episode import read_header
 from datahive.errors import DatahiveError, EpisodeNotFound, HubError
 from datahive.hub import Hub, remote_paths, remote_setup_jpg_path, remote_trials_csv_path
 from datahive.index import EpisodeRecord, Index
-from datahive.paths import resolve_episode_paths
-from datahive.trials import merge_rows, read_rows, upsert_row
+from datahive.paths import resolve_episode_paths, trials_csv_path
+from datahive.trials import get_row, merge_rows, read_rows, upsert_row
 
 
 def _get_hub(hub: Hub | None, cfg: Config | None = None) -> Hub:
@@ -329,3 +329,21 @@ def get_sync_status(samples_root: Path, *, hub: Hub | None = None) -> SyncStatus
             configured=True, connected=False, repo_id=cfg.repo_id, error=str(e),
             pending_count=pending, uploaded_count=uploaded, total_count=len(records),
         )
+
+
+def get_last_annotation(samples_root: Path, *, exclude_episode_id: str | None = None) -> dict | None:
+    """The most recently saved trial annotation anywhere under samples/,
+    for the GUI's "Copy from previous" button -- lets an annotator fill in
+    a fresh episode from the last one instead of retyping everything.
+    Skips episodes with no saved annotation row and (by default) the
+    episode being annotated right now."""
+    with Index(samples_root) as idx:
+        idx.scan()
+        records = idx.all()
+    for rec in sorted(records, key=lambda r: r.updated_at, reverse=True):
+        if rec.episode_id == exclude_episode_id or not rec.trial_id:
+            continue
+        row = get_row(trials_csv_path(samples_root, rec.session_id), rec.trial_id)
+        if row:
+            return row
+    return None

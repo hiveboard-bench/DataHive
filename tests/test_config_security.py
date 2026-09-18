@@ -80,6 +80,24 @@ def test_init_succeeds_outside_git_repo(tmp_path):
     assert path.is_file()
 
 
+def test_init_config_dir_overrides_default_location(tmp_path, monkeypatch):
+    """--config-dir writes config.yaml under the given directory for this
+    invocation, instead of $DATAHIVE_CONFIG_HOME / ~/.datahive."""
+    from typer.testing import CliRunner
+
+    from datahive.cli import app
+
+    custom_dir = tmp_path / "custom-config-location"
+    monkeypatch.chdir(tmp_path)
+    runner = CliRunner()
+    result = runner.invoke(
+        app,
+        ["init", "--lab-id", "lab_test", "--token", "hf_faketoken1234", "--no-verify", "--config-dir", str(custom_dir)],
+    )
+    assert result.exit_code == 0, result.output
+    assert (custom_dir / "config.yaml").is_file()
+
+
 def test_mask_token():
     assert mask_token("") == ""
     assert mask_token("short") == "*****"

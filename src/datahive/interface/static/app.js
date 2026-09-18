@@ -12,9 +12,6 @@ const profileBody = document.getElementById("profileBody");
 const profileCloseBtn = document.getElementById("profileCloseBtn");
 const taskOverlay = document.getElementById("taskOverlay");
 const taskCloseBtn = document.getElementById("taskCloseBtn");
-const copyPrevOverlay = document.getElementById("copyPrevOverlay");
-const copyPrevCloseBtn = document.getElementById("copyPrevCloseBtn");
-const copyPrevList = document.getElementById("copyPrevList");
 const toastContainer = document.getElementById("toastContainer");
 const hubStatusEl = document.getElementById("hubStatus");
 const bulkBar = document.getElementById("bulkBar");
@@ -687,12 +684,15 @@ async function selectEpisode(episodeId) {
   const myToken = ++selectEpisodeToken;
   selectedId = episodeId;
 
-  let data, attachments;
+  let data, attachments, previousAnnotations;
   try {
     await refreshList();
     if (myToken !== selectEpisodeToken) return; // superseded by a newer click
     data = await api(`/api/episodes/${episodeId}`);
     attachments = await loadAttachments();
+    previousAnnotations = await api(`/api/episodes/${episodeId}/previous-annotations`)
+      .then((r) => r.results)
+      .catch(() => []); // non-fatal -- "Copy from previous" just stays empty
   } catch (err) {
     if (myToken !== selectEpisodeToken) return; // superseded meanwhile -- don't show a stale error either
     showToast(err.message, { type: "error", title: `Could not load ${episodeId}` });
@@ -785,10 +785,14 @@ async function selectEpisode(episodeId) {
       <div class="pane annotate-pane">
       <div class="pane-header">
         <h3>Annotate</h3>
-        <button type="button" id="copyPrevBtn" class="btn-icon" title="Copy from the most recently annotated episode">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>
-          <span>Copy from previous</span>
-        </button>
+        <select id="copyPrevSelect" title="Copy from a previous annotation" ${previousAnnotations.length ? "" : "disabled"}>
+          <option value="" selected>${previousAnnotations.length ? "Copy from previous…" : "No previous annotations"}</option>
+          ${previousAnnotations.map((r) => {
+            const task = attachments[r.annotation.attachment_id];
+            const taskLabel = task ? task.name : (r.annotation.attachment_id || "no task");
+            return `<option value="${escapeHtml(r.episode_id)}">${escapeHtml(r.episode_id)} — ${escapeHtml(taskLabel)} — ${escapeHtml(humanize(r.annotation.outcome))}</option>`;
+          }).join("")}
+        </select>
       </div>
       <form class="validate-form" id="annForm">
         <fieldset>
@@ -945,44 +949,13 @@ async function selectEpisode(episodeId) {
     }
   }
 
-  document.getElementById("copyPrevBtn").addEventListener("click", async () => {
-    copyPrevOverlay.classList.remove("hidden");
-    copyPrevList.innerHTML = `<p class="empty-hint">Loading…</p>`;
-    try {
-      const { results } = await api(`/api/episodes/${episodeId}/previous-annotations`);
-      if (!results.length) {
-        copyPrevList.innerHTML = `<p class="empty-hint">No previous annotations yet.</p>`;
-        return;
-      }
-      copyPrevList.innerHTML = results.map((r) => {
-        const a = r.annotation;
-        const task = attachments[a.attachment_id];
-        const outcomeClass = a.outcome === "success" ? "uploaded" : "upload_failed";
-        return `
-          <button type="button" class="copy-prev-row" data-episode-id="${r.episode_id}">
-            <div class="copy-prev-main">
-              <strong>${escapeHtml(r.episode_id)}</strong>
-              <span>${escapeHtml(task ? task.name : (a.attachment_id || "–"))}</span>
-            </div>
-            <div class="copy-prev-meta">
-              <span class="badge ${outcomeClass}">${humanize(a.outcome)}</span>
-              <span>${escapeHtml(a.operator_name || "–")}</span>
-              <span>${escapeHtml(a.date || "")}</span>
-            </div>
-          </button>`;
-      }).join("");
-      copyPrevList.querySelectorAll(".copy-prev-row").forEach((row) => {
-        row.addEventListener("click", () => {
-          const match = results.find((r) => r.episode_id === row.dataset.episodeId);
-          if (match) {
-            applyAnnotationRow(match.annotation);
-            showToast(`Copied from ${match.episode_id}.`, { type: "success", timeout: 3000 });
-          }
-          copyPrevOverlay.classList.add("hidden");
-        });
-      });
-    } catch (err) {
-      copyPrevList.innerHTML = `<p class="empty-hint">Error: ${escapeHtml(err.message)}</p>`;
+  const copyPrevSelect = document.getElementById("copyPrevSelect");
+  copyPrevSelect.addEventListener("change", () => {
+    const match = previousAnnotations.find((r) => r.episode_id === copyPrevSelect.value);
+    copyPrevSelect.value = ""; // one-shot action -- reset to the placeholder right away
+    if (match) {
+      applyAnnotationRow(match.annotation);
+      showToast(`Copied from ${match.episode_id}.`, { type: "success", timeout: 3000 });
     }
   });
 
@@ -1288,11 +1261,6 @@ profileOverlay.addEventListener("click", (e) => {
 taskCloseBtn.addEventListener("click", () => taskOverlay.classList.add("hidden"));
 taskOverlay.addEventListener("click", (e) => {
   if (e.target === taskOverlay) taskOverlay.classList.add("hidden");
-});
-
-copyPrevCloseBtn.addEventListener("click", () => copyPrevOverlay.classList.add("hidden"));
-copyPrevOverlay.addEventListener("click", (e) => {
-  if (e.target === copyPrevOverlay) copyPrevOverlay.classList.add("hidden");
 });
 
 searchEl.addEventListener("input", refreshList);

@@ -310,6 +310,8 @@ dl.kv-list dd { margin: 0; word-break: break-word; }
 .pane-header { display: flex; align-items: center; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.85rem; }
 .pane-header h3 { margin-bottom: 0; }
 .pane-header .btn-icon { font-size: 0.78rem; padding: 0.3rem 0.6rem; }
+.pane-header select { font-size: 0.78rem; padding: 0.3rem 1.6rem 0.3rem 0.6rem; max-width: 220px; background-position: right 0.4rem center; }
+.pane-header select:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .camera-controls { display: flex; align-items: center; gap: 0.5rem; }
 .camera-controls select { font-size: 0.78rem; padding: 0.25rem 1.7rem 0.25rem 0.5rem; background-position: right 0.4rem center; }
@@ -412,6 +414,8 @@ button.btn-lg { padding: 0.65rem 1.5rem; font-size: 0.95rem; border-radius: 8px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.3);
 }
 .overlay-header { display: flex; justify-content: space-between; align-items: center; }
+.overlay-header h2 { margin: 0.2rem 0; }
+.overlay-header button { border: none; background: none; font-size: 1.1rem; }
 .task-overlay-panel { max-width: 980px; }
 
 /* Task chip: the button that opens the picker, shown in the annotate form
@@ -463,28 +467,6 @@ button.btn-lg { padding: 0.65rem 1.5rem; font-size: 0.95rem; border-radius: 8px;
 .task-card-body > span { color: var(--muted); font-size: 0.72rem; }
 .task-card-body .task-count { color: var(--accent); font-weight: 600; }
 
-/* "Copy from previous" picker */
-.copy-prev-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.copy-prev-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  width: 100%;
-  padding: 0.6rem 0.8rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--bg);
-  text-align: left;
-  cursor: pointer;
-}
-.copy-prev-row:hover { border-color: var(--accent); }
-.copy-prev-main { display: flex; flex-direction: column; gap: 0.15rem; min-width: 0; }
-.copy-prev-main strong { font-size: 0.88rem; }
-.copy-prev-main span { font-size: 0.78rem; color: var(--muted); }
-.copy-prev-meta { display: flex; align-items: center; gap: 0.6rem; font-size: 0.78rem; color: var(--muted); flex-shrink: 0; }
-.overlay-header h2 { margin: 0.2rem 0; }
-.overlay-header button { border: none; background: none; font-size: 1.1rem; }
 .problem-list { margin: 0; padding-left: 1.2rem; }
 fieldset { border: none; padding: 0; margin: 0 0 0.7rem; }
 fieldset legend {

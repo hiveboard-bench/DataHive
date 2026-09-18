@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from datahive import ops
 from datahive.attachments import load_registry
-from datahive.episode import episode_stats, read_header, read_trajectory
+from datahive.episode import episode_dataset_info, episode_stats, read_header, read_trajectory
 from datahive.errors import DatahiveError
 from datahive.index import Index
 from datahive.paths import resolve_episode_paths
@@ -141,6 +141,7 @@ def build_router(samples_root: Path) -> APIRouter:
             "cameras": sorted(paths.videos.keys()),
             "has_setup_image": paths.setup_jpg.exists(),
             "stats": episode_stats(paths.h5),
+            "dataset_info": episode_dataset_info(paths.h5),
         }
 
     @router.get("/api/episodes/{episode_id}/trajectory")

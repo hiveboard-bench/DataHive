@@ -264,6 +264,26 @@ dl.header-fields { display: grid; grid-template-columns: max-content 1fr; gap: 0
 dl.header-fields dt { color: var(--muted); }
 dl.header-fields dd { margin: 0; }
 
+.overview-summary { margin: 0 0 1rem; font-size: 0.85rem; color: var(--muted); }
+h4.overview-section {
+  margin: 1.1rem 0 0.5rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+h4.overview-section:first-of-type { margin-top: 0; }
+dl.kv-list {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.3rem 1.2rem;
+  margin: 0;
+  font-size: 0.85rem;
+}
+dl.kv-list dt { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; }
+dl.kv-list dd { margin: 0; word-break: break-word; }
+
 .detail-split { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr); gap: 1.5rem; align-items: start; margin-bottom: 1.1rem; }
 @media (max-width: 900px) { .detail-split { grid-template-columns: 1fr; } }
 .pane { padding: 0; }

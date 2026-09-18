@@ -115,6 +115,11 @@ def test_episode_header_merges_profile_and_episode_fields(samples_root, filled_p
     assert header.session_id == "sess1"
     assert header.trial_id == "trial-1"
     assert header.cameras[0]["name"] == "external"
+    # attach_video() must write the actual filename back onto the matching
+    # camera spec -- both in memory and in the persisted header attrs --
+    # so the header stays self-describing (and validate.py's "referenced
+    # video file exists" check has something real to check).
+    assert header.cameras[0]["file"] == "ep1_cam_external.mp4"
 
 
 def test_episode_keeps_profile_snapshot_after_profile_edited(samples_root, filled_profile):

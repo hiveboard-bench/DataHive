@@ -112,6 +112,27 @@ def episode_stats(h5_path: Path, group: str = "proprioception") -> dict[str, flo
     }
 
 
+def episode_dataset_info(h5_path: Path) -> dict[str, dict[str, dict]]:
+    """Per-field shape/dtype/provenance for /proprioception and /commands,
+    without reading the actual sample data -- used for the GUI's expanded
+    Overview panel (h5py exposes shape/dtype/attrs without touching the
+    underlying array)."""
+    info: dict[str, dict[str, dict]] = {}
+    with h5py.File(h5_path, "r") as f:
+        for group_name in ("proprioception", "commands"):
+            fields: dict[str, dict] = {}
+            grp = f.get(group_name)
+            if grp is not None:
+                for name, ds in grp.items():
+                    fields[name] = {
+                        "shape": list(ds.shape),
+                        "dtype": str(ds.dtype),
+                        "provenance": ds.attrs.get("provenance"),
+                    }
+            info[group_name] = fields
+    return info
+
+
 def read_trajectory(
     h5_path: Path,
     *,
@@ -292,6 +313,18 @@ class EpisodeWriter:
         else:
             shutil.copy2(str(src), str(dest))
         self.paths.videos[camera_name] = dest
+
+        # Record the actual filename on the matching camera spec, both in
+        # memory and back into the already-written header attrs -- the
+        # header must stay self-describing (this is also what makes
+        # validate.py's "referenced video file exists" check meaningful).
+        for cam in self.header.cameras:
+            if cam.get("name") == camera_name:
+                cam["file"] = dest.name
+                break
+        if self._file is not None:
+            self._file.attrs["cameras"] = json.dumps(self.header.cameras)
+
         return dest
 
     def close(self) -> None:

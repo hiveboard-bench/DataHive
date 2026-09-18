@@ -479,18 +479,100 @@ bulkClearBtn.addEventListener("click", () => {
 
 // --- Episode detail panel ---
 
-function renderHeader(header) {
-  const rows = [
-    ["lab_id", header.lab_id], ["platform_id", header.platform_id],
-    ["session_id", header.session_id], ["episode_id", header.episode_id],
-    ["trial_id", header.trial_id], ["control_mode", header.control_mode],
-    ["policy", header.policy], ["board_mounting", header.board_mounting],
-    ["hiveboard_version", header.hiveboard_version],
-    ["low_level.mode", header.low_level && header.low_level.mode],
-    ["manipulator.model", header.manipulator && header.manipulator.model],
-    ["cameras", (header.cameras || []).map((c) => c.name).join(", ")],
+// Flattens a plain object into [dottedKey, displayValue] pairs -- arrays
+// join with ", ", nested objects recurse with a dotted prefix, booleans
+// and numbers stringify as-is. Used to dump robot_profile.yaml-shaped
+// data (manipulator, end_effector, low_level, units_and_frames,
+// board_fabrication) into the Overview panel without hand-listing every
+// field.
+function flattenKV(obj, prefix = "") {
+  const out = [];
+  if (obj == null) return out;
+  for (const [k, v] of Object.entries(obj)) {
+    const key = prefix ? `${prefix}.${k}` : k;
+    if (v !== null && typeof v === "object" && !Array.isArray(v)) {
+      out.push(...flattenKV(v, key));
+    } else if (Array.isArray(v)) {
+      out.push([key, v.length ? v.join(", ") : "–"]);
+    } else {
+      out.push([key, v === null || v === "" || v === undefined ? "–" : String(v)]);
+    }
+  }
+  return out;
+}
+
+function kvListHtml(pairs) {
+  if (!pairs.length) return `<p class="empty-hint">None recorded.</p>`;
+  return `<dl class="kv-list">${pairs.map(([k, v]) => `<dt>${escapeHtml(k)}</dt><dd>${escapeHtml(String(v))}</dd>`).join("")}</dl>`;
+}
+
+function datasetInfoHtml(fields) {
+  const entries = Object.entries(fields || {});
+  if (!entries.length) return `<p class="empty-hint">None recorded.</p>`;
+  return `<dl class="kv-list">${entries.map(([name, info]) => {
+    const shape = `[${info.shape.join(", ")}]`;
+    const value = `${shape} · ${info.dtype}${info.provenance ? ` · ${info.provenance}` : ""}`;
+    return `<dt>${escapeHtml(name)}</dt><dd>${escapeHtml(value)}</dd>`;
+  }).join("")}</dl>`;
+}
+
+function renderOverview(data) {
+  const header = data.header;
+  const stats = data.stats || {};
+  const ann = data.annotation || {};
+  const proprio = (data.dataset_info && data.dataset_info.proprioception) || {};
+  const commands = (data.dataset_info && data.dataset_info.commands) || {};
+  const videoPaths = (header.cameras || []).filter((c) => c.file);
+
+  const attributes = [
+    ["episode_id", header.episode_id], ["session_id", header.session_id],
+    ["trial_id", header.trial_id], ["lab_id", header.lab_id],
+    ["platform_id", header.platform_id], ["task_ids", (header.task_ids || []).join(", ") || "–"],
+    ["created_at", header.created_at], ["datahive_version", header.datahive_version],
   ];
-  return `<dl class="header-fields">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v ?? "–"}</dd>`).join("")}</dl>`;
+
+  const robotProfile = [
+    ...flattenKV(header.manipulator, "manipulator"),
+    ...flattenKV(header.end_effector, "end_effector"),
+    ...flattenKV(header.low_level, "low_level"),
+    ["control_mode", header.control_mode ?? "–"],
+    ["policy", header.policy ?? "–"],
+    ["board_mounting", header.board_mounting ?? "–"],
+    ["hiveboard_version", header.hiveboard_version ?? "–"],
+    ["camera_names", (header.cameras || []).map((c) => c.name).join(", ") || "–"],
+    ...flattenKV(header.units_and_frames, "units_and_frames"),
+    ...flattenKV(header.board_fabrication, "board_fabrication"),
+  ];
+
+  const other = [
+    ["trajectory_length", formatSteps(stats.n_steps)],
+    ["duration_s", stats.duration_s != null ? stats.duration_s.toFixed(3) : "–"],
+    ["sample_rate_hz", stats.sample_rate_hz != null ? stats.sample_rate_hz.toFixed(1) : "–"],
+    ["operator_name", ann.operator_name || "–"],
+    ["annotator_name", ann.annotator_name || "–"],
+  ];
+
+  return `
+    <p class="overview-summary">Episode data — ${Object.keys(proprio).length} state key(s) · ${Object.keys(commands).length} action key(s)</p>
+
+    <h4 class="overview-section">Attributes</h4>
+    ${kvListHtml(attributes)}
+
+    <h4 class="overview-section">Robot profile</h4>
+    ${kvListHtml(robotProfile)}
+
+    <h4 class="overview-section">observations/robot_states (shape · dtype)</h4>
+    ${datasetInfoHtml(proprio)}
+
+    <h4 class="overview-section">actions (shape · dtype)</h4>
+    ${datasetInfoHtml(commands)}
+
+    <h4 class="overview-section">observations/video_paths</h4>
+    ${kvListHtml(videoPaths.length ? videoPaths.map((c) => [c.name, c.file]) : [])}
+
+    <h4 class="overview-section">Other</h4>
+    ${kvListHtml(other)}
+  `;
 }
 
 function cameraTooltipText(spec) {
@@ -546,7 +628,7 @@ async function selectEpisode(episodeId) {
         Overview
       </h3>
       <div class="collapsible-body" id="overviewBody" hidden>
-        ${renderHeader(data.header)}
+        ${renderOverview(data)}
       </div>
     </div>
 

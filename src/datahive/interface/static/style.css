@@ -13,24 +13,24 @@
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --bg: #0f1115;
+    --bg: #1c1f26;
     --fg: #e6e6e6;
-    --muted: #9ca3af;
-    --border: #262b36;
+    --muted: #a5adba;
+    --border: #363c48;
     --accent: #60a5fa;
-    --danger-bg: #2a1414;
-    --success-bg: #10261a;
+    --danger-bg: #33201f;
+    --success-bg: #1a2e22;
   }
 }
 /* Explicit override via the theme toggle, regardless of OS preference. */
 :root[data-theme="dark"] {
-  --bg: #0f1115;
+  --bg: #1c1f26;
   --fg: #e6e6e6;
-  --muted: #9ca3af;
-  --border: #262b36;
+  --muted: #a5adba;
+  --border: #363c48;
   --accent: #60a5fa;
-  --danger-bg: #2a1414;
-  --success-bg: #10261a;
+  --danger-bg: #33201f;
+  --success-bg: #1a2e22;
 }
 * { box-sizing: border-box; }
 body {
@@ -268,7 +268,7 @@ button.btn-lg { padding: 0.65rem 1.5rem; font-size: 0.95rem; border-radius: 8px;
 .overlay-header h2 { margin: 0.2rem 0; }
 .overlay-header button { border: none; background: none; font-size: 1.1rem; }
 .problem-list { margin: 0; padding-left: 1.2rem; }
-fieldset { border: none; padding: 0; margin: 0 0 1rem; }
+fieldset { border: none; padding: 0; margin: 0 0 0.7rem; }
 fieldset legend {
   padding: 0;
   margin-bottom: 0.5rem;
@@ -278,10 +278,15 @@ fieldset legend {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 0.8rem; }
-.field-grid label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--muted); }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 0.7rem; }
+.field-grid label { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.8rem; color: var(--muted); }
 .field-grid label input, .field-grid label select, .field-grid label textarea { color: var(--fg); }
 .field-grid label.full { grid-column: 1 / -1; }
+.field-grid input, .field-grid select { padding: 0.32rem 0.5rem; }
+.field-grid textarea { padding: 0.32rem 0.5rem; min-height: 2.4rem; resize: vertical; }
+
+.annotate-pane .field-grid { grid-template-columns: repeat(3, 1fr); }
+@media (max-width: 640px) { .annotate-pane .field-grid { grid-template-columns: 1fr 1fr; } }
 
 .profile-intro { color: var(--muted); font-size: 0.88rem; margin: 0 0 1rem; max-width: 60ch; }
 .problem-banner {

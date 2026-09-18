@@ -93,10 +93,22 @@ function humanize(value) {
 // dropdown. Renders a hidden input (so it's a normal form field on
 // submit) plus one button per option; wireSegmentedControls() below
 // handles the click-to-select behavior for every one of these in a form.
-function segmentedControlHtml(name, options, current) {
-  const buttons = options.map((v) => `<button type="button" class="segment${v === current ? " active" : ""}" data-value="${v}">${humanize(v)}</button>`).join("");
+function segmentedControlHtml(name, options, current, titles = {}) {
+  const buttons = options.map((v) => {
+    const title = titles[v] ? ` title="${escapeHtml(titles[v])}"` : "";
+    return `<button type="button" class="segment${v === current ? " active" : ""}" data-value="${v}"${title}>${humanize(v)}</button>`;
+  }).join("");
   return `<input type="hidden" name="${name}" value="${current || ""}"><div class="segmented" data-name="${name}">${buttons}</div>`;
 }
+
+// Shown on hover over each Outcome option -- what the evaluator actually
+// checks to reach that outcome for a HiveBoard trial.
+const OUTCOME_MEANINGS = {
+  success: "Full success criterion completed within the timeout.",
+  fail: "Ended unsuccessfully before the timeout.",
+  timeout: "Criterion not completed before the time limit.",
+  safety_stop: "Ended because of a safety event.",
+};
 
 function wireSegmentedControls(form) {
   form.querySelectorAll(".segmented").forEach((group) => {
@@ -710,7 +722,7 @@ async function selectEpisode(episodeId) {
               <button type="button" id="taskPickerBtn" class="task-chip">${taskChipHtml(info, attachmentId)}</button>
             </label>
             <label class="full">Outcome
-              ${segmentedControlHtml("outcome", OUTCOMES, outcome)}
+              ${segmentedControlHtml("outcome", OUTCOMES, outcome, OUTCOME_MEANINGS)}
             </label>
             <div id="restFields" style="${outcome ? "" : "display:none"}">
               <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">Failure cause

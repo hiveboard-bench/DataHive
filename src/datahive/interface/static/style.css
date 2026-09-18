@@ -312,6 +312,8 @@ dl.kv-list dd { margin: 0; word-break: break-word; }
 .pane-header .btn-icon { font-size: 0.78rem; padding: 0.3rem 0.6rem; }
 .pane-header select { font-size: 0.78rem; padding: 0.3rem 1.6rem 0.3rem 0.6rem; max-width: 220px; background-position: right 0.4rem center; }
 .pane-header select:disabled { opacity: 0.5; cursor: not-allowed; }
+.copy-prev-select { width: 100%; padding: 0.65rem 2rem 0.65rem 0.8rem; font-size: 0.9rem; margin: 0.6rem 0 1rem; }
+.copy-prev-select:disabled { opacity: 0.5; cursor: not-allowed; }
 
 .camera-controls { display: flex; align-items: center; gap: 0.5rem; }
 .camera-controls select { font-size: 0.78rem; padding: 0.25rem 1.7rem 0.25rem 0.5rem; background-position: right 0.4rem center; }

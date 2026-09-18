@@ -783,17 +783,15 @@ async function selectEpisode(episodeId) {
       </div>
 
       <div class="pane annotate-pane">
-      <div class="pane-header">
-        <h3>Annotate</h3>
-        <select id="copyPrevSelect" title="Copy from a previous annotation" ${previousAnnotations.length ? "" : "disabled"}>
-          <option value="" selected>${previousAnnotations.length ? "Copy from previous…" : "No previous annotations"}</option>
-          ${previousAnnotations.map((r) => {
-            const task = attachments[r.annotation.attachment_id];
-            const taskLabel = task ? task.name : (r.annotation.attachment_id || "no task");
-            return `<option value="${escapeHtml(r.episode_id)}">${escapeHtml(r.episode_id)} — ${escapeHtml(taskLabel)} — ${escapeHtml(humanize(r.annotation.outcome))}</option>`;
-          }).join("")}
-        </select>
-      </div>
+      <h3>Annotate</h3>
+      <select id="copyPrevSelect" class="copy-prev-select" title="Copy from a previous annotation" ${previousAnnotations.length ? "" : "disabled"}>
+        <option value="" selected>${previousAnnotations.length ? "Copy from previous…" : "No previous annotations"}</option>
+        ${previousAnnotations.map((r) => {
+          const task = attachments[r.annotation.attachment_id];
+          const taskLabel = task ? task.name : (r.annotation.attachment_id || "no task");
+          return `<option value="${escapeHtml(r.episode_id)}">${escapeHtml(r.episode_id)} — ${escapeHtml(taskLabel)} — ${escapeHtml(humanize(r.annotation.outcome))}</option>`;
+        }).join("")}
+      </select>
       <form class="validate-form" id="annForm">
         <fieldset>
           <div class="field-grid">

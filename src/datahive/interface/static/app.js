@@ -54,6 +54,11 @@ let selectedId = null;
 let attachmentsCache = null;
 const selectedEpisodes = new Set();
 
+// Video playback preferences, persisted across episode switches for this
+// page load (not per-viewer storage -- just in-memory module state).
+let videoPlaybackRate = 1;
+let videoLayoutCols = 1;
+
 async function api(path, opts) {
   const res = await fetch(path, opts);
   if (!res.ok) {
@@ -649,8 +654,26 @@ async function selectEpisode(episodeId) {
 
     <div class="detail-split">
       <div class="pane camera-pane">
-        <h3>Cameras</h3>
-        <div class="camera-grid">
+        <div class="pane-header">
+          <h3>Cameras</h3>
+          <div class="camera-controls">
+            <select id="videoSpeedSelect" title="Playback speed">
+              ${[0.5, 1, 1.5, 2].map((r) => `<option value="${r}" ${r === videoPlaybackRate ? "selected" : ""}>${r}x</option>`).join("")}
+            </select>
+            <div class="layout-toggle" id="videoLayoutToggle">
+              <button type="button" data-cols="1" class="${videoLayoutCols === 1 ? "active" : ""}" title="1 wide">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="6" width="18" height="12" rx="1"></rect></svg>
+              </button>
+              <button type="button" data-cols="2" class="${videoLayoutCols === 2 ? "active" : ""}" title="2 side by side">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="9" height="12" rx="1"></rect><rect x="13" y="6" width="9" height="12" rx="1"></rect></svg>
+              </button>
+              <button type="button" data-cols="3" class="${videoLayoutCols === 3 ? "active" : ""}" title="3 side by side">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="6" width="6.5" height="12" rx="1"></rect><rect x="8.75" y="6" width="6.5" height="12" rx="1"></rect><rect x="16.5" y="6" width="6.5" height="12" rx="1"></rect></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="camera-grid" id="cameraGrid" style="grid-template-columns: repeat(${videoLayoutCols}, 1fr);">
           ${data.cameras.map((c) => {
             const spec = (data.header.cameras || []).find((cam) => cam.name === c) || null;
             const tooltip = cameraTooltipText(spec);
@@ -752,6 +775,20 @@ async function selectEpisode(episodeId) {
     overviewToggle.classList.toggle("collapsed", nowHidden);
   });
   overviewToggle.classList.add("collapsed"); // starts minimized
+
+  document.querySelectorAll(".camera-grid video").forEach((v) => { v.playbackRate = videoPlaybackRate; });
+  document.getElementById("videoSpeedSelect").addEventListener("change", (e) => {
+    videoPlaybackRate = parseFloat(e.target.value);
+    document.querySelectorAll(".camera-grid video").forEach((v) => { v.playbackRate = videoPlaybackRate; });
+  });
+  const cameraGrid = document.getElementById("cameraGrid");
+  document.querySelectorAll("#videoLayoutToggle button").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      videoLayoutCols = Number(btn.dataset.cols);
+      cameraGrid.style.gridTemplateColumns = `repeat(${videoLayoutCols}, 1fr)`;
+      document.querySelectorAll("#videoLayoutToggle button").forEach((b) => b.classList.toggle("active", b === btn));
+    });
+  });
 
   const form = document.getElementById("annForm");
   wireSegmentedControls(form);

@@ -6,7 +6,9 @@
   --border: #e5e7eb;
   --accent: #2563eb;
   --danger: #dc2626;
+  --danger-bg: #fef2f2;
   --success: #16a34a;
+  --success-bg: #f0fdf4;
   --warn: #d97706;
 }
 @media (prefers-color-scheme: dark) {
@@ -16,6 +18,8 @@
     --muted: #9ca3af;
     --border: #262b36;
     --accent: #60a5fa;
+    --danger-bg: #2a1414;
+    --success-bg: #10261a;
   }
 }
 * { box-sizing: border-box; }
@@ -179,9 +183,9 @@ fieldset legend { padding: 0 0.4rem; color: var(--muted); font-size: 0.85rem; }
   from { opacity: 0; transform: translateY(-8px); }
   to { opacity: 1; transform: translateY(0); }
 }
-.toast.error { border-color: var(--danger); }
+.toast.error { border-color: var(--danger); background: var(--danger-bg); }
 .toast.error .toast-icon { color: var(--danger); }
-.toast.success { border-color: var(--success); }
+.toast.success { border-color: var(--success); background: var(--success-bg); }
 .toast.success .toast-icon { color: var(--success); }
 .toast-icon { width: 1.1rem; height: 1.1rem; flex-shrink: 0; margin-top: 0.05rem; }
 .toast-body { flex: 1; }

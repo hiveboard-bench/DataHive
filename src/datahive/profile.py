@@ -123,6 +123,26 @@ def write_profile_skeleton(samples_root: Path, *, force: bool = False) -> Path:
     return path
 
 
+def camera_consistency_problems(cameras: list[dict[str, Any]]) -> list[str]:
+    """All cameras on a rig (and so on every episode it records) must share
+    the same resolution and fps -- otherwise per-camera framing and timing
+    aren't comparable across the recording. A no-op for 0 or 1 cameras."""
+    problems: list[str] = []
+    if not cameras or len(cameras) < 2:
+        return problems
+
+    def _values(field: str) -> dict[str, Any]:
+        return {c.get("name") or f"camera {i}": c.get(field) for i, c in enumerate(cameras)}
+
+    for field, label in (("resolution", "resolution"), ("fps", "fps")):
+        values = _values(field)
+        distinct = {v for v in values.values()}
+        if len(distinct) > 1:
+            detail = ", ".join(f"{name}={value!r}" for name, value in values.items())
+            problems.append(f"Cameras have inconsistent {label} ({detail}) -- all cameras must match.")
+    return problems
+
+
 def incompleteness_problems(raw: dict[str, Any]) -> list[str]:
     """The mandatory-field checks shared by `datahive validate`, the CLI's
     profile loader, and the GUI's profile editor (so all three agree on
@@ -138,8 +158,10 @@ def incompleteness_problems(raw: dict[str, Any]) -> list[str]:
     manipulator = raw.get("manipulator") or {}
     if not manipulator.get("joint_names"):
         problems.append("manipulator.joint_names is empty.")
-    if not raw.get("cameras"):
+    cameras = raw.get("cameras") or []
+    if not cameras:
         problems.append("cameras is empty -- at least one camera must be described.")
+    problems.extend(camera_consistency_problems(cameras))
     return problems
 
 

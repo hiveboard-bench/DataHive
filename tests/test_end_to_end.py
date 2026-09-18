@@ -7,7 +7,7 @@ from datahive.annotate import annotate_episode
 from datahive.errors import ValidationError
 from datahive.index import Index
 from datahive.paths import profile_path
-from datahive.profile import load_profile, write_profile_skeleton
+from datahive.profile import RobotProfile, load_profile, write_profile_skeleton
 from datahive.validate import validate_episode
 
 from conftest import make_episode
@@ -87,6 +87,42 @@ def test_full_lifecycle(samples_root, fake_hub):
 
     with Index(samples_root) as idx:
         assert idx.get("ep1") is None
+
+
+def test_validate_rejects_episode_with_mismatched_cameras(samples_root):
+    """Defense in depth: even if an episode's own header snapshot ended up
+    with mismatched camera resolutions/fps (e.g. it was recorded before the
+    profile was corrected), validate_episode() must still catch it from the
+    episode's own header -- not just from loading the current profile."""
+    # A valid, consistent profile is on disk (what a lab would normally
+    # have after fixing a mismatch)...
+    _fill_profile(samples_root)
+    # ...but this particular episode was snapshotted under different,
+    # mismatched camera settings (simulating "recorded before the fix").
+    stale_profile = RobotProfile.from_dict(
+        {
+            "manipulator": {"model": "TestArm", "dof": 6, "joint_names": ["j1"]},
+            "low_level": {"mode": "stock"},
+            "cameras": [
+                {"name": "external", "resolution": "1280x720", "fps": 30},
+                {"name": "wrist", "resolution": "640x480", "fps": 30},
+            ],
+        }
+    )
+    make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=stale_profile)
+    from datahive.annotate import annotate_episode as _annotate
+
+    _annotate(
+        samples_root, "ep1",
+        {"attachment_id": "valve_ball", "outcome": "success", "n_attempts": 1, "n_regrasps": 0, "strategy": "prehensile"},
+        validate_after=False,
+    )
+
+    try:
+        validate_episode(samples_root, "ep1")
+        assert False, "expected ValidationError for mismatched camera resolution"
+    except ValidationError as e:
+        assert any("resolution" in p for p in e.problems)
 
 
 def test_cli_end_to_end(tmp_path, monkeypatch):

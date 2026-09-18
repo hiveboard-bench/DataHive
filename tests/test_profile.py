@@ -6,7 +6,7 @@ import pytest
 from datahive.errors import ProfileIncomplete, ProfileMissing
 from datahive.episode import EpisodeWriter, read_header
 from datahive.paths import profile_path
-from datahive.profile import load_profile, write_profile_skeleton
+from datahive.profile import camera_consistency_problems, load_profile, write_profile_skeleton
 
 from conftest import make_episode
 
@@ -55,6 +55,54 @@ def test_load_profile_incomplete_cameras(samples_root):
     data["manipulator"]["joint_names"] = ["j1"]
     path.write_text(yaml.safe_dump(data))
     with pytest.raises(ProfileIncomplete, match="cameras"):
+        load_profile(samples_root)
+
+
+def test_camera_consistency_noop_for_fewer_than_two_cameras():
+    assert camera_consistency_problems([]) == []
+    assert camera_consistency_problems([{"name": "external", "resolution": "1280x720", "fps": 30}]) == []
+
+
+def test_camera_consistency_detects_mismatched_resolution():
+    cameras = [
+        {"name": "external", "resolution": "1280x720", "fps": 30},
+        {"name": "wrist", "resolution": "640x480", "fps": 30},
+    ]
+    problems = camera_consistency_problems(cameras)
+    assert len(problems) == 1
+    assert "resolution" in problems[0]
+
+
+def test_camera_consistency_detects_mismatched_fps():
+    cameras = [
+        {"name": "external", "resolution": "1280x720", "fps": 30},
+        {"name": "wrist", "resolution": "1280x720", "fps": 60},
+    ]
+    problems = camera_consistency_problems(cameras)
+    assert len(problems) == 1
+    assert "fps" in problems[0]
+
+
+def test_camera_consistency_passes_when_matching():
+    cameras = [
+        {"name": "external", "resolution": "1280x720", "fps": 30},
+        {"name": "wrist", "resolution": "1280x720", "fps": 30},
+        {"name": "overhead", "resolution": "1280x720", "fps": 30},
+    ]
+    assert camera_consistency_problems(cameras) == []
+
+
+def test_load_profile_rejects_mismatched_cameras(samples_root):
+    path = write_profile_skeleton(samples_root)
+    data = yaml.safe_load(path.read_text())
+    data["low_level"]["mode"] = "stock"
+    data["manipulator"]["joint_names"] = ["j1"]
+    data["cameras"] = [
+        {"name": "external", "resolution": "1280x720", "fps": 30},
+        {"name": "wrist", "resolution": "640x480", "fps": 30},
+    ]
+    path.write_text(yaml.safe_dump(data))
+    with pytest.raises(ProfileIncomplete, match="resolution"):
         load_profile(samples_root)
 
 

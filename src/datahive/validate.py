@@ -9,7 +9,7 @@ from datahive.episode import read_header, sample_rate_hz
 from datahive.errors import DatahiveError, ProfileIncomplete, ProfileMissing, ValidationError
 from datahive.index import Index
 from datahive.paths import resolve_episode_paths
-from datahive.profile import load_profile
+from datahive.profile import camera_consistency_problems, load_profile
 from datahive.schema import TrialAnnotation
 from datahive.trials import get_row
 
@@ -48,6 +48,7 @@ def validate_episode(samples_root: Path, episode_id: str, *, update_index: bool 
         problems.append("Episode header has no manipulator.joint_names recorded.")
     if not header.cameras:
         problems.append("Episode header lists no cameras.")
+    problems.extend(camera_consistency_problems(header.cameras))
 
     # 3. Sample rate check.
     rate = sample_rate_hz(paths.h5)

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import pytest
 import yaml
 from fastapi.testclient import TestClient
 
@@ -287,6 +288,26 @@ def test_severity_forbidden_on_success(samples_root):
         },
     )
     assert resp.status_code == 422
+
+
+def test_annotate_derives_completion_time_from_episode_duration(samples_root):
+    """completion_time_s is not a form field any more -- the GUI never
+    sends it for a success outcome, so annotate_episode() must derive it
+    from the episode's own recorded duration."""
+    profile = _fill_profile(samples_root)
+    make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile, n_points=500, rate_hz=100.0)
+    client = _client(samples_root)
+
+    resp = client.post(
+        "/api/episodes/ep1/annotate",
+        json={"attachment_id": "peg_round", "outcome": "success", "strategy": "prehensile"},
+    )
+    assert resp.status_code == 200
+
+    detail = client.get("/api/episodes/ep1").json()
+    completion_time = float(detail["annotation"]["completion_time_s"])
+    expected = detail["stats"]["duration_s"]
+    assert completion_time == pytest.approx(expected, abs=0.01)
 
 
 def test_bulk_validate_via_api(samples_root):

@@ -38,9 +38,20 @@ def annotate_episode(
     # model; callers (the GUI's JSON payload in particular) may send an
     # explicit None for "not provided" -- normalize that to "" here so both
     # the CLI and the GUI can omit them freely.
-    for name_field in ("operator_name", "annotator_name"):
+    for name_field in ("operator_name", "annotator_name", "failure_cause_detail"):
         if data.get(name_field) is None:
             data[name_field] = ""
+
+    # completion_time_s is derived from the episode's own recorded duration
+    # rather than typed in by hand -- the .h5's timestamps are the source
+    # of truth for how long a successful trial actually took. A caller can
+    # still pass an explicit value to override it.
+    if data.get("outcome") == "success" and data.get("completion_time_s") is None:
+        from datahive.episode import episode_stats
+
+        duration = episode_stats(paths.h5).get("duration_s")
+        if duration is not None:
+            data["completion_time_s"] = round(duration, 3)
 
     attachment_id = data.get("attachment_id")
     composed = is_composed_assembly(attachment_id or "", samples_root)

@@ -403,14 +403,17 @@ async function selectEpisode(episodeId) {
                 ${FAILURE_CAUSES.map((c) => `<option value="${c}" ${c === ann.failure_cause ? "selected" : ""}>${humanize(c)}</option>`).join("")}
               </select>
             </label>
+            <label id="failureCauseDetailField" class="full" style="${(outcome === "success" || ann.failure_cause !== "other") ? "display:none" : ""}">Reason
+              <input name="failure_cause_detail" value="${ann.failure_cause_detail || ""}" placeholder="What happened?">
+            </label>
             <label id="severityField" style="${outcome === "success" ? "display:none" : ""}">Severity
               <select name="severity">
                 <option value="">–</option>
                 ${SEVERITIES.map((s) => `<option value="${s}" ${s === ann.severity ? "selected" : ""}>${humanize(s)}</option>`).join("")}
               </select>
             </label>
-            <label id="completionTimeField" style="${outcome !== "success" ? "display:none" : ""}">Completion time (s)
-              <input name="completion_time_s" type="number" step="0.01" value="${ann.completion_time_s || ""}">
+            <label id="completionTimeField" style="${outcome !== "success" ? "display:none" : ""}">Completion time
+              <input value="${formatDuration(stats.duration_s)} (from the episode's recorded duration)" disabled>
             </label>
             <label>Attempts <input name="n_attempts" type="number" value="${ann.n_attempts || 1}"></label>
             <label>Regrasps <input name="n_regrasps" type="number" value="${ann.n_regrasps || 0}"></label>
@@ -449,12 +452,21 @@ async function selectEpisode(episodeId) {
   overviewToggle.classList.add("collapsed"); // starts minimized
 
   const form = document.getElementById("annForm");
+
+  function updateFailureCauseDetailVisibility() {
+    const isSuccess = form.outcome.value === "success";
+    const isOther = form.failure_cause.value === "other";
+    document.getElementById("failureCauseDetailField").style.display = (!isSuccess && isOther) ? "" : "none";
+  }
+
   form.outcome.addEventListener("change", () => {
     const isSuccess = form.outcome.value === "success";
     document.getElementById("failureCauseField").style.display = isSuccess ? "none" : "";
     document.getElementById("severityField").style.display = isSuccess ? "none" : "";
     document.getElementById("completionTimeField").style.display = isSuccess ? "" : "none";
+    updateFailureCauseDetailVisibility();
   });
+  form.failure_cause.addEventListener("change", updateFailureCauseDetailVisibility);
   form.attachment_id.addEventListener("change", () => {
     const a = attachments[form.attachment_id.value];
     document.getElementById("stageField").style.display = a && a.composed_assembly ? "" : "none";
@@ -463,7 +475,9 @@ async function selectEpisode(episodeId) {
   function collectAnnotationPayload() {
     const fd = new FormData(form);
     const payload = Object.fromEntries(fd.entries());
-    for (const k of ["completion_time_s", "n_attempts", "n_regrasps", "stage_reached"]) {
+    // completion_time_s is intentionally not a form field -- the backend
+    // derives it from the episode's own recorded duration.
+    for (const k of ["n_attempts", "n_regrasps", "stage_reached"]) {
       payload[k] = payload[k] === "" ? null : Number(payload[k]);
     }
     if (payload.severity === "") payload.severity = null;

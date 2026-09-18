@@ -117,3 +117,34 @@ def test_operator_and_annotator_name_default_blank():
     ann = TrialAnnotation.model_validate(base())
     assert ann.operator_name == ""
     assert ann.annotator_name == ""
+
+
+def test_failure_cause_detail_required_when_other():
+    with pytest.raises(PydanticValidationError, match="failure_cause_detail"):
+        TrialAnnotation.model_validate(
+            base(outcome="fail", completion_time_s=None, failure_cause="other")
+        )
+    ann = TrialAnnotation.model_validate(
+        base(outcome="fail", completion_time_s=None, failure_cause="other", failure_cause_detail="Cable snagged on the fixture")
+    )
+    assert ann.failure_cause_detail == "Cable snagged on the fixture"
+
+
+def test_failure_cause_detail_not_required_for_other_causes():
+    ann = TrialAnnotation.model_validate(base(outcome="fail", completion_time_s=None, failure_cause="slip"))
+    assert ann.failure_cause_detail == ""
+
+
+def test_failure_cause_detail_forbidden_on_success():
+    with pytest.raises(PydanticValidationError, match="failure_cause_detail"):
+        TrialAnnotation.model_validate(base(failure_cause_detail="shouldn't be here"))
+
+
+def test_failure_cause_detail_csv_roundtrip():
+    ann = TrialAnnotation.model_validate(
+        base(outcome="fail", completion_time_s=None, failure_cause="other", failure_cause_detail="Gripper jaw misaligned")
+    )
+    row = ann.to_csv_row()
+    assert row["failure_cause_detail"] == "Gripper jaw misaligned"
+    ann2 = TrialAnnotation.from_csv_row(row)
+    assert ann2.failure_cause_detail == "Gripper jaw misaligned"

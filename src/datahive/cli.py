@@ -118,6 +118,7 @@ def annotate(
     samples: Optional[str] = SAMPLES_OPTION,
     outcome: Optional[str] = typer.Option(None),
     failure_cause: Optional[str] = typer.Option(None),
+    failure_cause_detail: Optional[str] = typer.Option(None, help="Free-text reason, required when failure_cause=other"),
     severity: Optional[str] = typer.Option(None, help="minor | moderate | critical (only for non-success outcomes)"),
     completion_time_s: Optional[float] = typer.Option(None),
     n_attempts: Optional[int] = typer.Option(None),
@@ -151,11 +152,14 @@ def annotate(
         failure_cause = prompt_if_needed(
             failure_cause, f"failure_cause ({'/'.join(c.value for c in FailureCause)})"
         )
+        if failure_cause == FailureCause.other.value:
+            failure_cause_detail = prompt_if_needed(failure_cause_detail, "failure_cause_detail (what happened)")
         if not non_interactive and severity is None:
             raw = typer.prompt(f"severity ({'/'.join(s.value for s in FailureSeverity)}, blank to skip)", default="")
             severity = raw or None
-    else:
-        completion_time_s = prompt_if_needed(completion_time_s, "completion_time_s", type=float)
+    # completion_time_s is not prompted for on success -- annotate_episode()
+    # derives it from the episode's own recorded duration. --completion-time-s
+    # still works as an explicit override if a lab needs one.
     if not non_interactive and n_attempts is None:
         n_attempts = typer.prompt("n_attempts", type=int, default=1)
     if not non_interactive and n_regrasps is None:
@@ -169,6 +173,7 @@ def annotate(
         "operator_name": operator_name or "",
         "outcome": outcome,
         "failure_cause": failure_cause,
+        "failure_cause_detail": failure_cause_detail or "",
         "severity": severity,
         "completion_time_s": completion_time_s,
         "n_attempts": n_attempts,

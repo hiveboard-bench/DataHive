@@ -70,6 +70,7 @@ input, select, button {
 }
 button { cursor: pointer; transition: border-color 0.12s, background 0.12s, color 0.12s; }
 button:hover { border-color: var(--accent); }
+input:disabled { background: rgba(128,128,128,0.08); color: var(--muted); cursor: not-allowed; }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 button.primary:hover { filter: brightness(1.08); }
 button.danger { background: transparent; border-color: var(--danger); color: var(--danger); }

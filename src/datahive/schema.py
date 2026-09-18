@@ -46,6 +46,7 @@ TRIAL_COLUMNS: tuple[str, ...] = (
     "operator_name",
     "outcome",
     "failure_cause",
+    "failure_cause_detail",
     "severity",
     "completion_time_s",
     "n_attempts",
@@ -76,6 +77,7 @@ class TrialAnnotation(BaseModel):
     operator_name: str = ""
     outcome: Outcome
     failure_cause: Optional[FailureCause] = None
+    failure_cause_detail: str = ""
     severity: Optional[FailureSeverity] = None
     completion_time_s: Optional[float] = Field(default=None, gt=0)
     n_attempts: Optional[int] = Field(default=None, ge=0)
@@ -98,6 +100,11 @@ class TrialAnnotation(BaseModel):
                 raise ValueError(
                     "completion_time_s must be blank unless outcome='success'"
                 )
+            if self.failure_cause == FailureCause.other and not self.failure_cause_detail.strip():
+                raise ValueError(
+                    "failure_cause_detail is required when failure_cause='other' "
+                    "(write what actually happened)"
+                )
         else:
             if self.failure_cause:
                 raise ValueError("failure_cause must be blank when outcome='success'")
@@ -105,6 +112,8 @@ class TrialAnnotation(BaseModel):
                 raise ValueError("completion_time_s is required when outcome='success'")
             if self.severity:
                 raise ValueError("severity must be blank when outcome='success'")
+            if self.failure_cause_detail:
+                raise ValueError("failure_cause_detail must be blank when outcome='success'")
 
         context = info.context or {}
         composed_assembly = context.get("composed_assembly")
@@ -144,6 +153,7 @@ class TrialAnnotation(BaseModel):
             "operator_name": row.get("operator_name") or "",
             "outcome": n(row.get("outcome")),
             "failure_cause": n(row.get("failure_cause")),
+            "failure_cause_detail": row.get("failure_cause_detail") or "",
             "severity": n(row.get("severity")),
             "completion_time_s": n(row.get("completion_time_s")),
             "n_attempts": n(row.get("n_attempts")),

@@ -31,6 +31,7 @@ class AnnotatePayload(BaseModel):
     operator_name: Optional[str] = None
     outcome: Optional[str] = None
     failure_cause: Optional[str] = None
+    failure_cause_detail: Optional[str] = None
     severity: Optional[str] = None
     completion_time_s: Optional[float] = None
     n_attempts: Optional[int] = None

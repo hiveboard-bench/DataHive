@@ -10,6 +10,7 @@ const profileBtn = document.getElementById("profileBtn");
 const profileOverlay = document.getElementById("profileOverlay");
 const profileBody = document.getElementById("profileBody");
 const profileCloseBtn = document.getElementById("profileCloseBtn");
+const toastContainer = document.getElementById("toastContainer");
 
 let selectedId = null;
 let attachmentsCache = null;
@@ -18,9 +19,37 @@ async function api(path, opts) {
   const res = await fetch(path, opts);
   if (!res.ok) {
     const text = await res.text();
-    throw new Error(`${res.status}: ${text}`);
+    let message = text;
+    try {
+      const parsed = JSON.parse(text);
+      message = parsed.detail || text;
+    } catch (_) { /* not JSON, use raw text */ }
+    throw new Error(message);
   }
   return res.json();
+}
+
+const TOAST_ICONS = {
+  error: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
+  success: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>',
+};
+
+function showToast(message, { type = "error", title, timeout = 7000 } = {}) {
+  const toast = document.createElement("div");
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
+    <svg class="toast-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${TOAST_ICONS[type] || TOAST_ICONS.error}</svg>
+    <div class="toast-body">
+      ${title ? `<div class="toast-title">${title}</div>` : ""}
+      <div>${message}</div>
+    </div>
+    <button class="toast-close" aria-label="Dismiss">✕</button>
+  `;
+  const remove = () => toast.remove();
+  toast.querySelector(".toast-close").onclick = remove;
+  toastContainer.appendChild(toast);
+  if (timeout) setTimeout(remove, timeout);
+  return toast;
 }
 
 async function loadAttachments() {
@@ -404,7 +433,18 @@ syncBtn.addEventListener("click", async () => {
   syncBtn.disabled = true;
   syncBtnLabel.textContent = "Syncing…";
   try {
-    await api("/api/sync", { method: "POST" });
+    const report = await api("/api/sync", { method: "POST" });
+    if (report.upload_failed && report.upload_failed.length) {
+      showToast(
+        `${report.upload_failed.length} episode(s) failed to upload: ${report.upload_failed.join(", ")}`,
+        { type: "error", title: "Sync failed" },
+      );
+    } else {
+      const total = (report.uploaded || []).length;
+      if (total) showToast(`Uploaded ${total} episode(s).`, { type: "success", title: "Sync complete", timeout: 4000 });
+    }
+  } catch (err) {
+    showToast(err.message, { type: "error", title: "Sync failed" });
   } finally {
     syncBtn.disabled = false;
     syncBtnLabel.textContent = "Sync";

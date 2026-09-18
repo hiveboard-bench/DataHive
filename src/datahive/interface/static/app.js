@@ -104,10 +104,10 @@ function segmentedControlHtml(name, options, current, titles = {}) {
 // Shown on hover over each Outcome option -- what the evaluator actually
 // checks to reach that outcome for a HiveBoard trial.
 const OUTCOME_MEANINGS = {
-  success: "Full success criterion completed within the timeout.",
-  fail: "Ended unsuccessfully before the timeout.",
-  timeout: "Criterion not completed before the time limit.",
-  safety_stop: "Ended because of a safety event.",
+  success: "The task's success criterion was fully met before the timeout.",
+  fail: "The attempt ended without meeting the success criterion, before the timeout was reached.",
+  timeout: "The time limit was reached before the success criterion could be met.",
+  safety_stop: "The trial was stopped early by a safety event (e.g. a force/torque limit or emergency stop).",
 };
 
 function wireSegmentedControls(form) {

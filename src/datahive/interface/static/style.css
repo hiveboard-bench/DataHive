@@ -352,6 +352,7 @@ fieldset legend {
 
 
 .profile-intro { color: var(--muted); font-size: 0.88rem; margin: 0 0 1rem; max-width: 60ch; }
+.field-hint { color: var(--muted); font-size: 0.8rem; margin: -0.5rem 0 0.8rem; }
 .problem-banner {
   border: 1px solid var(--warn);
   background: rgba(217,119,6,0.08);

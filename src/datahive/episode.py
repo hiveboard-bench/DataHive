@@ -41,6 +41,7 @@ _JSON_HEADER_FIELDS = {
     "low_level",
     "cameras",
     "units_and_frames",
+    "board_fabrication",
 }
 
 # Fields that are Optional[str] on EpisodeHeader -- an empty string written
@@ -220,6 +221,7 @@ class EpisodeWriter:
             task_ids=task_ids or [],
             hiveboard_version=snapshot.get("hiveboard_version"),
             board_mounting=snapshot.get("board_mounting"),
+            board_fabrication=snapshot.get("board_fabrication") or {},
             manipulator=snapshot.get("manipulator") or {},
             end_effector=snapshot.get("end_effector") or {},
             low_level=snapshot.get("low_level") or {},

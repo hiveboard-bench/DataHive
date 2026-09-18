@@ -192,6 +192,7 @@ class EpisodeHeader(BaseModel):
 
     hiveboard_version: Optional[str] = None
     board_mounting: Optional[str] = None
+    board_fabrication: dict[str, Any] = Field(default_factory=dict)
     manipulator: dict[str, Any] = Field(default_factory=dict)
     end_effector: dict[str, Any] = Field(default_factory=dict)
     low_level: dict[str, Any] = Field(default_factory=dict)

@@ -169,6 +169,13 @@ def test_update_profile_via_api_completes_it(samples_root):
         "cameras": [{"name": "external", "resolution": "1280x720", "encoding": "h264", "fps": 30}],
         "board_mounting": "horizontal",
         "hiveboard_version": "v2",
+        "board_fabrication": {
+            "printer": "Prusa MK4",
+            "material": "PETG (Prusament)",
+            "print_settings": "0.4mm nozzle, 0.2mm layers, 4 walls, 40% infill",
+            "post_processing": "Light sanding on mating surfaces",
+            "calibration_notes": "Bed leveled before this batch",
+        },
         "units_and_frames": {},
         "platform_id": "rig-01",
     }
@@ -176,17 +183,23 @@ def test_update_profile_via_api_completes_it(samples_root):
     assert resp.status_code == 200
     body = resp.json()
     assert body["problems"] == []
+    assert body["profile"]["board_fabrication"]["printer"] == "Prusa MK4"
 
     # The same file `datahive validate` / EpisodeWriter read.
     profile = load_profile(samples_root)
     assert profile.manipulator["model"] == "TestArm"
+    assert profile.board_fabrication["material"] == "PETG (Prusament)"
 
-    # And an episode can now be built and validated against it.
+    # And an episode can now be built and validated against it -- the
+    # board fabrication details are snapshotted into its header too.
     make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile)
     write_valid_annotation(samples_root, "sess1", "t1")
     from datahive.validate import validate_episode
 
     validate_episode(samples_root, "ep1")
+
+    detail = client.get("/api/episodes/ep1").json()
+    assert detail["header"]["board_fabrication"]["printer"] == "Prusa MK4"
 
 
 def test_bulk_upload_and_delete_via_api(samples_root, fake_hub, monkeypatch):

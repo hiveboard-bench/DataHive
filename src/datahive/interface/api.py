@@ -55,6 +55,7 @@ class ProfilePayload(BaseModel):
     cameras: list = []
     board_mounting: Optional[str] = None
     hiveboard_version: Optional[str] = None
+    board_fabrication: dict = {}
     units_and_frames: dict = {}
     platform_id: Optional[str] = None
 

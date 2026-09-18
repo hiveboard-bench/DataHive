@@ -38,6 +38,16 @@ SKELETON: dict[str, Any] = {
     "cameras": [],  # [{name, resolution, encoding, fps, position, orientation}]
     "board_mounting": None,  # horizontal | vertical
     "hiveboard_version": None,
+    # Same field names as HiveBoard's Evaluation Runner "setup details"
+    # (https://hiveboard-bench.github.io/hivedocs/benchmark/evaluation-runner),
+    # so a lab's submission there and its DataHive profile stay consistent.
+    "board_fabrication": {
+        "printer": None,  # manufacturer and model
+        "material": None,  # filament type and manufacturer
+        "print_settings": None,  # nozzle, layer height, walls, infill, part orientation
+        "post_processing": None,  # sanding, lubrication, dimensional adjustments, or "none"
+        "calibration_notes": None,  # relevant calibration or setup changes
+    },
     "units_and_frames": {
         "joint_position": "rad",
         "joint_velocity": "rad/s",
@@ -59,6 +69,7 @@ class RobotProfile:
     cameras: list[dict[str, Any]] = field(default_factory=list)
     board_mounting: str | None = None
     hiveboard_version: str | None = None
+    board_fabrication: dict[str, Any] = field(default_factory=dict)
     units_and_frames: dict[str, Any] = field(default_factory=dict)
     platform_id: str | None = None
 
@@ -73,6 +84,7 @@ class RobotProfile:
             cameras=raw.get("cameras") or [],
             board_mounting=raw.get("board_mounting"),
             hiveboard_version=raw.get("hiveboard_version"),
+            board_fabrication=raw.get("board_fabrication") or {},
             units_and_frames=raw.get("units_and_frames") or {},
             platform_id=raw.get("platform_id"),
         )
@@ -87,6 +99,7 @@ class RobotProfile:
             "cameras": self.cameras,
             "board_mounting": self.board_mounting,
             "hiveboard_version": self.hiveboard_version,
+            "board_fabrication": self.board_fabrication,
             "units_and_frames": self.units_and_frames,
             "platform_id": self.platform_id,
         }

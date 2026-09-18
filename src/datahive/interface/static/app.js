@@ -648,6 +648,7 @@ function renderProfileForm(profile, problems, exists) {
   const ee = profile.end_effector || {};
   const ll = profile.low_level || {};
   const cams = profile.cameras || [];
+  const bf = profile.board_fabrication || {};
 
   const problemsHtml = problems.length
     ? `<div class="problem-banner"><ul class="problem-list">${problems.map((p) => `<li>${p}</li>`).join("")}</ul></div>`
@@ -712,6 +713,24 @@ function renderProfileForm(profile, problems, exists) {
       </div>
 
       <div class="card">
+        <h3>Board fabrication</h3>
+        <p class="field-hint">Same fields as HiveBoard's Evaluation Runner setup details, so a submission there matches this profile.</p>
+        <div class="field-grid">
+          <label>Printer <input name="board_fabrication.printer" value="${bf.printer || ""}" placeholder="Manufacturer and model"></label>
+          <label>Material <input name="board_fabrication.material" value="${bf.material || ""}" placeholder="Filament type and manufacturer"></label>
+          <label class="full">Print settings
+            <textarea name="board_fabrication.print_settings" placeholder="Nozzle, layer height, walls, infill, and part orientation">${bf.print_settings || ""}</textarea>
+          </label>
+          <label class="full">Post-processing
+            <textarea name="board_fabrication.post_processing" placeholder="Sanding, lubrication, dimensional adjustments, or None">${bf.post_processing || ""}</textarea>
+          </label>
+          <label class="full">Calibration notes
+            <input name="board_fabrication.calibration_notes" value="${bf.calibration_notes || ""}" placeholder="Relevant calibration or setup changes">
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
         <h3>General</h3>
         <div class="field-grid">
           <label>Control mode <input name="control_mode" value="${profile.control_mode || ""}" placeholder="joint_position"></label>
@@ -753,7 +772,7 @@ function renderProfileForm(profile, problems, exists) {
   form.addEventListener("submit", async (e) => {
     e.preventDefault();
     const fd = new FormData(form);
-    const payload = { manipulator: {}, end_effector: {}, low_level: {} };
+    const payload = { manipulator: {}, end_effector: {}, low_level: {}, board_fabrication: {} };
     for (const [key, value] of fd.entries()) {
       if (key.includes(".")) {
         const [group, field] = key.split(".");

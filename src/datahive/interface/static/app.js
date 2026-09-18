@@ -713,6 +713,22 @@ function renderProfileForm(profile, problems, exists) {
       </div>
 
       <div class="card">
+        <h3>General</h3>
+        <div class="field-grid">
+          <label>Control mode <input name="control_mode" value="${profile.control_mode || ""}" placeholder="joint_position"></label>
+          <label>Policy <input name="policy" value="${profile.policy || ""}" placeholder="teleop_spacemouse"></label>
+          <label>Board mounting
+            <select name="board_mounting">
+              <option value="">–</option>
+              ${["horizontal", "vertical"].map((v) => `<option value="${v}" ${profile.board_mounting === v ? "selected" : ""}>${humanize(v)}</option>`).join("")}
+            </select>
+          </label>
+          <label>HiveBoard version <input name="hiveboard_version" value="${profile.hiveboard_version || ""}"></label>
+          <label>Platform ID <input name="platform_id" value="${profile.platform_id || ""}"></label>
+        </div>
+      </div>
+
+      <div class="card">
         <h3>Board fabrication</h3>
         <p class="field-hint">Same fields as HiveBoard's Evaluation Runner setup details, so a submission there matches this profile.</p>
         <div class="field-grid">
@@ -727,22 +743,6 @@ function renderProfileForm(profile, problems, exists) {
           <label class="full">Calibration notes
             <input name="board_fabrication.calibration_notes" value="${bf.calibration_notes || ""}" placeholder="Relevant calibration or setup changes">
           </label>
-        </div>
-      </div>
-
-      <div class="card">
-        <h3>General</h3>
-        <div class="field-grid">
-          <label>Control mode <input name="control_mode" value="${profile.control_mode || ""}" placeholder="joint_position"></label>
-          <label>Policy <input name="policy" value="${profile.policy || ""}" placeholder="teleop_spacemouse"></label>
-          <label>Board mounting
-            <select name="board_mounting">
-              <option value="">–</option>
-              ${["horizontal", "vertical"].map((v) => `<option value="${v}" ${profile.board_mounting === v ? "selected" : ""}>${humanize(v)}</option>`).join("")}
-            </select>
-          </label>
-          <label>HiveBoard version <input name="hiveboard_version" value="${profile.hiveboard_version || ""}"></label>
-          <label>Platform ID <input name="platform_id" value="${profile.platform_id || ""}"></label>
         </div>
       </div>
 

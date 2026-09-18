@@ -237,6 +237,28 @@ async function refreshHubStatus() {
   hubStatusEl.title = title;
 }
 
+// --- Left-panel dataset summary (total / annotated / online) -- always
+// counts the whole samples/ tree, independent of the active search/status
+// filter, so it reads as "how much data do I have" rather than "how many
+// results are showing". ---
+
+async function renderListStats() {
+  const el = document.getElementById("listStats");
+  try {
+    const all = await api("/api/episodes");
+    const total = all.length;
+    const annotated = all.filter((e) => !e.status.startsWith("recorded")).length;
+    const online = all.filter((e) => e.status.startsWith("uploaded")).length;
+    el.innerHTML = `
+      <span><strong>${total}</strong> episode${total === 1 ? "" : "s"}</span>
+      <span><strong>${annotated}</strong> annotated</span>
+      <span><strong>${online}</strong> online</span>
+    `;
+  } catch (err) {
+    el.innerHTML = "";
+  }
+}
+
 // --- Task (attachment) picker: mirrors HiveBoard's Evaluation Runner
 // task-selection grid (https://hiveboard-bench.github.io/hivedocs/benchmark/evaluation-runner). ---
 
@@ -473,6 +495,7 @@ bulkUploadBtn.addEventListener("click", async () => {
     selectedEpisodes.clear();
     await refreshList();
     await refreshHubStatus();
+    await renderListStats();
   }
 });
 
@@ -501,6 +524,7 @@ bulkDeleteBtn.addEventListener("click", async () => {
     selectedEpisodes.clear();
     await refreshList();
     await refreshHubStatus();
+    await renderListStats();
   }
 });
 
@@ -956,6 +980,7 @@ async function selectEpisode(episodeId) {
       msg.textContent = result.uploaded ? "Uploaded." : `Skipped: ${result.skipped_reason || result.error}`;
       await refreshList();
       await refreshHubStatus();
+      await renderListStats();
     } catch (err) {
       msg.textContent = `Error: ${err.message}`;
       showToast(err.message, { type: "error", title: "Upload failed" });
@@ -970,6 +995,7 @@ async function selectEpisode(episodeId) {
       detailEl.innerHTML = '<p class="empty-hint">Select an episode to see its details.</p>';
       await refreshList();
       await refreshHubStatus();
+      await renderListStats();
     } catch (err) {
       document.getElementById("statusMsg").textContent = `Error: ${err.message}`;
       showToast(err.message, { type: "error", title: "Delete failed" });
@@ -1235,8 +1261,10 @@ syncBtn.addEventListener("click", async () => {
     syncBtnLabel.textContent = "Sync";
     await refreshList();
     await refreshHubStatus();
+    await renderListStats();
   }
 });
 
 refreshList();
 refreshHubStatus();
+renderListStats();

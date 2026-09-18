@@ -148,6 +148,18 @@ main {
 }
 .list-filters { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); }
 .list-filters select { width: 100%; }
+.list-stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-top: 0.6rem;
+  padding-top: 0.6rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.list-stats strong { color: var(--fg); font-size: 0.85rem; display: block; }
+.list-stats span { display: flex; flex-direction: column; align-items: center; gap: 0.1rem; flex: 1; }
 .episode-list { overflow-y: auto; flex: 1; min-height: 0; }
 .bulk-bar {
   display: flex;

@@ -242,7 +242,7 @@ dl.header-fields { display: grid; grid-template-columns: max-content 1fr; gap: 0
 dl.header-fields dt { color: var(--muted); }
 dl.header-fields dd { margin: 0; }
 
-.detail-split { display: grid; grid-template-columns: minmax(260px, 3fr) minmax(220px, 2fr); gap: 1.5rem; align-items: start; margin-bottom: 1.1rem; }
+.detail-split { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr); gap: 1.5rem; align-items: start; margin-bottom: 1.1rem; }
 @media (max-width: 900px) { .detail-split { grid-template-columns: 1fr; } }
 .pane { padding: 0; }
 .pane h3 {
@@ -397,6 +397,20 @@ fieldset legend {
 .field-grid input, .field-grid select { padding: 0.65rem 0.7rem; }
 .field-grid textarea { padding: 0.5rem 0.6rem; min-height: 4.5rem; resize: vertical; }
 .field-grid textarea::placeholder { color: var(--muted); opacity: 0.75; }
+
+.segmented { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.segmented .segment {
+  padding: 0.5rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--fg);
+  font-size: 0.85rem;
+  font-weight: 500;
+  cursor: pointer;
+}
+.segmented .segment:hover { border-color: var(--accent); }
+.segmented .segment.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 .annotate-pane .field-grid { grid-template-columns: 1fr; }
 

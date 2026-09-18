@@ -79,6 +79,28 @@ function humanize(value) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// A button-group ("segmented control") in place of a native <select>, for
+// short enum fields where clicking an option beats picking from a
+// dropdown. Renders a hidden input (so it's a normal form field on
+// submit) plus one button per option; wireSegmentedControls() below
+// handles the click-to-select behavior for every one of these in a form.
+function segmentedControlHtml(name, options, current) {
+  const buttons = options.map((v) => `<button type="button" class="segment${v === current ? " active" : ""}" data-value="${v}">${humanize(v)}</button>`).join("");
+  return `<input type="hidden" name="${name}" value="${current || ""}"><div class="segmented" data-name="${name}">${buttons}</div>`;
+}
+
+function wireSegmentedControls(form) {
+  form.querySelectorAll(".segmented").forEach((group) => {
+    group.addEventListener("click", (e) => {
+      const btn = e.target.closest(".segment");
+      if (!btn) return;
+      form.elements[group.dataset.name].value = btn.dataset.value;
+      group.querySelectorAll(".segment").forEach((b) => b.classList.toggle("active", b === btn));
+      group.dispatchEvent(new Event("segmentchange", { bubbles: true }));
+    });
+  });
+}
+
 function formatDuration(seconds) {
   if (seconds == null) return "–";
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
@@ -515,11 +537,8 @@ async function selectEpisode(episodeId) {
             <label id="failureCauseDetailField" class="full" style="${(outcome === "success" || ann.failure_cause !== "other") ? "display:none" : ""}">Reason
               <input name="failure_cause_detail" value="${ann.failure_cause_detail || ""}" placeholder="What happened?">
             </label>
-            <label id="severityField" style="${outcome === "success" ? "display:none" : ""}">Severity
-              <select name="severity">
-                <option value="">–</option>
-                ${SEVERITIES.map((s) => `<option value="${s}" ${s === ann.severity ? "selected" : ""}>${humanize(s)}</option>`).join("")}
-              </select>
+            <label id="severityField" class="full" style="${outcome === "success" ? "display:none" : ""}">Severity
+              ${segmentedControlHtml("severity", SEVERITIES, ann.severity)}
             </label>
             <label id="completionTimeField" style="${outcome !== "success" ? "display:none" : ""}">Completion time
               <input value="${formatDuration(stats.duration_s)}" disabled>
@@ -529,10 +548,8 @@ async function selectEpisode(episodeId) {
             <label id="stageField" style="${composed ? "" : "display:none"}">Stage reached
               <input name="stage_reached" type="number" value="${ann.stage_reached || ""}">
             </label>
-            <label>Strategy
-              <select name="strategy">
-                ${STRATEGIES.map((s) => `<option value="${s}" ${s === ann.strategy ? "selected" : ""}>${humanize(s)}</option>`).join("")}
-              </select>
+            <label class="full">Strategy
+              ${segmentedControlHtml("strategy", STRATEGIES, ann.strategy)}
             </label>
             <label class="full">Notes
               <textarea name="notes" placeholder="Anything else worth recording about this trial…">${ann.notes || ""}</textarea>
@@ -574,6 +591,7 @@ async function selectEpisode(episodeId) {
   overviewToggle.classList.add("collapsed"); // starts minimized
 
   const form = document.getElementById("annForm");
+  wireSegmentedControls(form);
 
   function updateFailureCauseDetailVisibility() {
     const isSuccess = form.outcome.value === "success";

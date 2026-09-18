@@ -542,10 +542,8 @@ async function selectEpisode(episodeId) {
               <input type="hidden" name="attachment_id" value="${attachmentId}">
               <button type="button" id="taskPickerBtn" class="task-chip">${taskChipHtml(info, attachmentId)}</button>
             </label>
-            <label>Outcome
-              <select name="outcome">
-                ${OUTCOMES.map((o) => `<option value="${o}" ${o === outcome ? "selected" : ""}>${humanize(o)}</option>`).join("")}
-              </select>
+            <label class="full">Outcome
+              ${segmentedControlHtml("outcome", OUTCOMES, outcome)}
             </label>
             <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">Failure cause
               <select name="failure_cause">
@@ -617,7 +615,7 @@ async function selectEpisode(episodeId) {
     document.getElementById("failureCauseDetailField").style.display = (!isSuccess && isOther) ? "" : "none";
   }
 
-  form.outcome.addEventListener("change", () => {
+  form.querySelector('.segmented[data-name="outcome"]').addEventListener("segmentchange", () => {
     const isSuccess = form.outcome.value === "success";
     document.getElementById("failureCauseField").style.display = isSuccess ? "none" : "";
     document.getElementById("severityField").style.display = isSuccess ? "none" : "";

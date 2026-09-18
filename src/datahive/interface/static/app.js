@@ -95,8 +95,8 @@ function humanize(value) {
 // handles the click-to-select behavior for every one of these in a form.
 function segmentedControlHtml(name, options, current, titles = {}) {
   const buttons = options.map((v) => {
-    const title = titles[v] ? ` title="${escapeHtml(titles[v])}"` : "";
-    return `<button type="button" class="segment${v === current ? " active" : ""}" data-value="${v}"${title}>${humanize(v)}</button>`;
+    const tooltip = titles[v] ? ` data-tooltip="${escapeHtml(titles[v])}"` : "";
+    return `<button type="button" class="segment${v === current ? " active" : ""}" data-value="${v}"${tooltip}>${humanize(v)}</button>`;
   }).join("");
   return `<input type="hidden" name="${name}" value="${current || ""}"><div class="segmented" data-name="${name}">${buttons}</div>`;
 }

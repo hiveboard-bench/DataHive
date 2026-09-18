@@ -88,6 +88,14 @@ function humanize(value) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
+// Red asterisk marking a mandatory field's label. For fields that are
+// only conditionally required (Failure cause, Reason, Stage reached),
+// this is only ever rendered while that field is also visible -- i.e.
+// exactly when it's actually required.
+function requiredMark() {
+  return `<span class="required-mark" title="Required">*</span>`;
+}
+
 // A button-group ("segmented control") in place of a native <select>, for
 // short enum fields where clicking an option beats picking from a
 // dropdown. Renders a hidden input (so it's a normal form field on
@@ -741,21 +749,21 @@ async function selectEpisode(episodeId) {
           <div class="field-grid">
             <label>Operator name <input name="operator_name" value="${ann.operator_name || ""}" placeholder="Who ran this trial"></label>
             <label>Annotator name <input name="annotator_name" value="${ann.annotator_name || ""}" placeholder="Who is annotating"></label>
-            <label class="full">Task
+            <label class="full">Task${requiredMark()}
               <input type="hidden" name="attachment_id" value="${attachmentId}">
               <button type="button" id="taskPickerBtn" class="task-chip">${taskChipHtml(info, attachmentId)}</button>
             </label>
-            <label class="full">Outcome
+            <label class="full">Outcome${requiredMark()}
               ${segmentedControlHtml("outcome", OUTCOMES, outcome, OUTCOME_MEANINGS)}
             </label>
             <hr id="outcomeDivider" class="field-divider" style="${!outcome || outcome === "success" ? "display:none" : ""}">
             <div id="restFields" style="${outcome ? "" : "display:none"}">
-              <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">Failure cause
+              <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">Failure cause${requiredMark()}
                 <select name="failure_cause">
                   ${FAILURE_CAUSES.map((c) => `<option value="${c}" ${c === ann.failure_cause ? "selected" : ""}>${humanize(c)}</option>`).join("")}
                 </select>
               </label>
-              <label id="failureCauseDetailField" class="full" style="${(outcome === "success" || ann.failure_cause !== "other") ? "display:none" : ""}">Reason
+              <label id="failureCauseDetailField" class="full" style="${(outcome === "success" || ann.failure_cause !== "other") ? "display:none" : ""}">Reason${requiredMark()}
                 <input name="failure_cause_detail" value="${ann.failure_cause_detail || ""}" placeholder="What happened?">
               </label>
               <label id="severityField" class="full" style="${outcome === "success" ? "display:none" : ""}">Severity
@@ -767,10 +775,10 @@ async function selectEpisode(episodeId) {
               </label>
               <label>Attempts <input name="n_attempts" type="number" value="${ann.n_attempts || 1}"></label>
               <label>Regrasps <input name="n_regrasps" type="number" value="${ann.n_regrasps || 0}"></label>
-              <label id="stageField" class="full" style="${composed ? "" : "display:none"}">Stage reached
+              <label id="stageField" class="full" style="${composed ? "" : "display:none"}">Stage reached${requiredMark()}
                 <div id="stageFieldBody">${stageFieldHtml(info, ann.stage_reached)}</div>
               </label>
-              <label class="full">Strategy
+              <label class="full">Strategy${requiredMark()}
                 ${segmentedControlHtml("strategy", STRATEGIES, ann.strategy)}
               </label>
             </div>

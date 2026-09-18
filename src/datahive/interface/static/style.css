@@ -562,6 +562,8 @@ fieldset legend {
   margin-left: 0.5rem;
   vertical-align: middle;
 }
+.required-mark { color: var(--danger); margin-left: 0.15rem; font-weight: 700; cursor: help; }
+
 .camera-list { display: grid; gap: 0.8rem; margin-bottom: 0.9rem; }
 .camera-entry { border: 1px solid var(--border); border-radius: 8px; padding: 0.8rem 0.9rem; }
 .camera-entry-header {

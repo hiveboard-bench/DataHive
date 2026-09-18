@@ -51,6 +51,13 @@ themeToggleBtn.addEventListener("click", () => {
 updateThemeIcon(currentTheme());
 
 let selectedId = null;
+// Bumped on every selectEpisode() call; a call whose token has since been
+// superseded (e.g. the user clicked another episode before this one's
+// fetches resolved) abandons instead of overwriting the newer render with
+// stale data -- this was the "have to F5" bug: clicking through episodes
+// quickly let an older, slower request finish last and silently clobber
+// (or, on a hard error, just never repaint) the detail panel.
+let selectEpisodeToken = 0;
 let attachmentsCache = null;
 const selectedEpisodes = new Set();
 
@@ -677,10 +684,23 @@ function cameraTooltipText(spec) {
 }
 
 async function selectEpisode(episodeId) {
+  const myToken = ++selectEpisodeToken;
   selectedId = episodeId;
-  await refreshList();
-  const data = await api(`/api/episodes/${episodeId}`);
-  const attachments = await loadAttachments();
+
+  let data, attachments;
+  try {
+    await refreshList();
+    if (myToken !== selectEpisodeToken) return; // superseded by a newer click
+    data = await api(`/api/episodes/${episodeId}`);
+    attachments = await loadAttachments();
+  } catch (err) {
+    if (myToken !== selectEpisodeToken) return; // superseded meanwhile -- don't show a stale error either
+    showToast(err.message, { type: "error", title: `Could not load ${episodeId}` });
+    detailEl.innerHTML = `<p class="empty-hint">Error loading ${escapeHtml(episodeId)}: ${escapeHtml(err.message)}</p>`;
+    return;
+  }
+  if (myToken !== selectEpisodeToken) return; // superseded by a newer click while fetching
+
   const ann = data.annotation || {};
   // Blank (not defaulted to "success") until the annotator actually picks
   // one -- the rest of the form stays hidden until then.

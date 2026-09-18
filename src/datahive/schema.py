@@ -31,19 +31,28 @@ class Strategy(StrEnum):
     non_prehensile = "non_prehensile"
 
 
+class FailureSeverity(StrEnum):
+    minor = "minor"
+    moderate = "moderate"
+    critical = "critical"
+
+
 TRIAL_COLUMNS: tuple[str, ...] = (
     "trial_id",
     "lab_id",
     "platform_id",
     "attachment_id",
     "date",
+    "operator_name",
     "outcome",
     "failure_cause",
+    "severity",
     "completion_time_s",
     "n_attempts",
     "n_regrasps",
     "stage_reached",
     "strategy",
+    "annotator_name",
     "notes",
 )
 
@@ -64,13 +73,16 @@ class TrialAnnotation(BaseModel):
     platform_id: str
     attachment_id: str
     date: date
+    operator_name: str = ""
     outcome: Outcome
     failure_cause: Optional[FailureCause] = None
+    severity: Optional[FailureSeverity] = None
     completion_time_s: Optional[float] = Field(default=None, gt=0)
     n_attempts: Optional[int] = Field(default=None, ge=0)
     n_regrasps: Optional[int] = Field(default=None, ge=0)
     stage_reached: Optional[int] = Field(default=None, ge=0)
     strategy: Strategy
+    annotator_name: str = ""
     notes: str = ""
 
     @model_validator(mode="after")
@@ -91,6 +103,8 @@ class TrialAnnotation(BaseModel):
                 raise ValueError("failure_cause must be blank when outcome='success'")
             if self.completion_time_s is None:
                 raise ValueError("completion_time_s is required when outcome='success'")
+            if self.severity:
+                raise ValueError("severity must be blank when outcome='success'")
 
         context = info.context or {}
         composed_assembly = context.get("composed_assembly")
@@ -127,13 +141,16 @@ class TrialAnnotation(BaseModel):
             "platform_id": row.get("platform_id", ""),
             "attachment_id": row.get("attachment_id", ""),
             "date": n(row.get("date")),
+            "operator_name": row.get("operator_name") or "",
             "outcome": n(row.get("outcome")),
             "failure_cause": n(row.get("failure_cause")),
+            "severity": n(row.get("severity")),
             "completion_time_s": n(row.get("completion_time_s")),
             "n_attempts": n(row.get("n_attempts")),
             "n_regrasps": n(row.get("n_regrasps")),
             "stage_reached": n(row.get("stage_reached")),
             "strategy": n(row.get("strategy")),
+            "annotator_name": row.get("annotator_name") or "",
             "notes": row.get("notes") or "",
         }
         return cls.model_validate(data, context=context or {})

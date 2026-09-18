@@ -26,15 +26,18 @@ from datahive.profile import (
 from datahive.trials import get_row
 
 
-class ValidatePayload(BaseModel):
+class AnnotatePayload(BaseModel):
     attachment_id: Optional[str] = None
+    operator_name: Optional[str] = None
     outcome: Optional[str] = None
     failure_cause: Optional[str] = None
+    severity: Optional[str] = None
     completion_time_s: Optional[float] = None
     n_attempts: Optional[int] = None
     n_regrasps: Optional[int] = None
     stage_reached: Optional[int] = None
     strategy: Optional[str] = None
+    annotator_name: Optional[str] = None
     notes: str = ""
 
 
@@ -111,6 +114,12 @@ def build_router(samples_root: Path) -> APIRouter:
         results = ops.bulk_delete_episodes(samples_root, payload.episode_ids, delete_remote=remote)
         return {"results": [r.__dict__ for r in results]}
 
+    @router.post("/api/episodes/bulk-validate")
+    def bulk_validate(payload: BulkIdsPayload):
+        from datahive.validate import bulk_validate_episodes
+
+        return {"results": bulk_validate_episodes(samples_root, payload.episode_ids)}
+
     @router.get("/api/episodes/{episode_id}")
     def get_episode(episode_id: str):
         try:
@@ -161,15 +170,25 @@ def build_router(samples_root: Path) -> APIRouter:
             raise HTTPException(404, "No setup image")
         return FileResponse(paths.setup_jpg, media_type="image/jpeg")
 
-    @router.post("/api/episodes/{episode_id}/validate")
-    def post_validate(episode_id: str, payload: ValidatePayload):
+    @router.post("/api/episodes/{episode_id}/annotate")
+    def post_annotate(episode_id: str, payload: AnnotatePayload):
+        """Saves the trials.csv row only -- distinct from /validate, which
+        the CLI's `datahive annotate` (auto-validates after) and `datahive
+        validate` also keep separate. This lets the GUI's Save button save
+        a draft without also having to pass validation."""
         from datahive.annotate import annotate_episode
-        from datahive.validate import validate_episode
 
         try:
-            annotate_episode(samples_root, episode_id, payload.model_dump())
+            annotate_episode(samples_root, episode_id, payload.model_dump(), validate_after=False)
         except DatahiveError as e:
             raise HTTPException(422, str(e))
+        return {"ok": True}
+
+    @router.post("/api/episodes/{episode_id}/validate")
+    def post_validate(episode_id: str):
+        """Runs schema/profile validation only, against whatever is
+        currently saved -- the same check `datahive validate` runs."""
+        from datahive.validate import validate_episode
 
         try:
             warnings = validate_episode(samples_root, episode_id)

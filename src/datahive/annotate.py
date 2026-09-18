@@ -34,6 +34,13 @@ def annotate_episode(
         from datetime import date
 
         data["date"] = date.today().isoformat()
+    # operator_name/annotator_name are plain (non-Optional) strings on the
+    # model; callers (the GUI's JSON payload in particular) may send an
+    # explicit None for "not provided" -- normalize that to "" here so both
+    # the CLI and the GUI can omit them freely.
+    for name_field in ("operator_name", "annotator_name"):
+        if data.get(name_field) is None:
+            data[name_field] = ""
 
     attachment_id = data.get("attachment_id")
     composed = is_composed_assembly(attachment_id or "", samples_root)

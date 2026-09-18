@@ -101,9 +101,9 @@ main {
   font-size: 0.85rem;
   flex-shrink: 0;
 }
-.bulk-bar.hidden { display: none; }
 .bulk-bar #bulkCount { font-weight: 600; margin-right: auto; }
 .bulk-bar button { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
+.bulk-bar button:disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--border); color: var(--muted); background: transparent; }
 .list-group-header {
   position: sticky;
   top: 0;
@@ -189,19 +189,32 @@ main {
   letter-spacing: 0.04em;
   color: var(--muted);
 }
+.card h3.collapsible-header {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  cursor: pointer;
+  user-select: none;
+}
+.card h3.collapsible-header:hover { color: var(--fg); }
+.card h3.collapsible-header .chevron { width: 0.8rem; height: 0.8rem; flex-shrink: 0; transition: transform 0.15s; }
+.card h3.collapsible-header.collapsed .chevron { transform: rotate(-90deg); }
+.collapsible-body { margin-top: 0.85rem; }
 
 dl.header-fields { display: grid; grid-template-columns: max-content 1fr; gap: 0.35rem 1.2rem; margin: 0; font-size: 0.9rem; }
 dl.header-fields dt { color: var(--muted); }
 dl.header-fields dd { margin: 0; }
 
-.camera-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 0.9rem; }
-.camera-card { border: 1px solid var(--border); border-radius: 8px; padding: 0.6rem; }
-.camera-card .cam-name { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.4rem; }
-video { max-width: 100%; border-radius: 8px; display: block; margin: 0; }
+.camera-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1.2rem; }
+.camera-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; }
+.camera-card .cam-name { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.5rem; }
+video { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; display: block; margin: 0; }
 
 form.validate-form { display: grid; gap: 0; }
 form.validate-form .field-grid { margin-bottom: 0; }
-.actions { display: flex; gap: 0.6rem; margin-top: 0.4rem; }
+.actions { display: flex; gap: 0.7rem; margin-top: 0.6rem; }
+button.btn-lg { padding: 0.65rem 1.5rem; font-size: 0.95rem; border-radius: 8px; font-weight: 600; }
 .status-msg { margin-top: 0.6rem; font-size: 0.85rem; color: var(--muted); }
 
 .overlay {

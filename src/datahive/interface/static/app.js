@@ -13,6 +13,7 @@ const profileCloseBtn = document.getElementById("profileCloseBtn");
 const toastContainer = document.getElementById("toastContainer");
 const bulkBar = document.getElementById("bulkBar");
 const bulkCountEl = document.getElementById("bulkCount");
+const bulkValidateBtn = document.getElementById("bulkValidateBtn");
 const bulkUploadBtn = document.getElementById("bulkUploadBtn");
 const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
 const bulkClearBtn = document.getElementById("bulkClearBtn");
@@ -118,8 +119,12 @@ function dayLabel(date) {
 
 function updateBulkBar() {
   const n = selectedEpisodes.size;
-  bulkBar.classList.toggle("hidden", n === 0);
   bulkCountEl.textContent = `${n} selected`;
+  const disabled = n === 0;
+  bulkValidateBtn.disabled = disabled;
+  bulkUploadBtn.disabled = disabled;
+  bulkDeleteBtn.disabled = disabled;
+  bulkClearBtn.disabled = disabled;
 }
 
 function toggleSelection(episodeId, checked) {
@@ -217,6 +222,31 @@ async function refreshList() {
   updateBulkBar();
 }
 
+bulkValidateBtn.addEventListener("click", async () => {
+  const ids = Array.from(selectedEpisodes);
+  if (!ids.length) return;
+  bulkValidateBtn.disabled = true;
+  try {
+    const { results } = await api("/api/episodes/bulk-validate", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ episode_ids: ids }),
+    });
+    const succeeded = results.filter((r) => r.ok);
+    const failed = results.filter((r) => !r.ok);
+    if (succeeded.length) {
+      showToast(`${succeeded.length} episode(s) are valid.`, { type: "success", title: "Bulk validate", timeout: 4000 });
+    }
+    if (failed.length) {
+      const detail = failed.map((r) => `${r.episode_id}: ${r.error || "failed"}`).join("\n\n");
+      showToast(detail, { type: "error", title: `${failed.length} episode(s) failed validation`, timeout: 14000 });
+    }
+  } catch (err) {
+    showToast(err.message, { type: "error", title: "Bulk validate failed" });
+  } finally {
+    bulkValidateBtn.disabled = false;
+    await refreshList();
+  }
+});
+
 bulkUploadBtn.addEventListener("click", async () => {
   const ids = Array.from(selectedEpisodes);
   if (!ids.length) return;
@@ -306,6 +336,7 @@ async function selectEpisode(episodeId) {
 
   const OUTCOMES = ["success", "fail", "timeout", "safety_stop"];
   const FAILURE_CAUSES = ["grasp_geometry", "kinematic_limit", "perception", "slip", "force_limit", "control_precision", "other"];
+  const SEVERITIES = ["minor", "moderate", "critical"];
   const STRATEGIES = ["prehensile", "non_prehensile"];
 
   detailEl.innerHTML = `
@@ -325,8 +356,13 @@ async function selectEpisode(episodeId) {
     </div>
 
     <div class="card">
-      <h3>Overview</h3>
-      ${renderHeader(data.header)}
+      <h3 class="collapsible-header" id="overviewToggle">
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        Overview
+      </h3>
+      <div class="collapsible-body" id="overviewBody" hidden>
+        ${renderHeader(data.header)}
+      </div>
     </div>
 
     <div class="card">
@@ -341,8 +377,15 @@ async function selectEpisode(episodeId) {
     </div>
 
     <div class="card">
-      <h3>Validate / Annotate</h3>
+      <h3>Annotate</h3>
       <form class="validate-form" id="annForm">
+        <fieldset>
+          <legend>Who</legend>
+          <div class="field-grid">
+            <label>Operator name <input name="operator_name" value="${ann.operator_name || ""}" placeholder="Who ran this trial"></label>
+            <label>Annotator name <input name="annotator_name" value="${ann.annotator_name || ""}" placeholder="Who is annotating"></label>
+          </div>
+        </fieldset>
         <fieldset>
           <legend>Trial outcome</legend>
           <div class="field-grid">
@@ -358,6 +401,12 @@ async function selectEpisode(episodeId) {
             <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">Failure cause
               <select name="failure_cause">
                 ${FAILURE_CAUSES.map((c) => `<option value="${c}" ${c === ann.failure_cause ? "selected" : ""}>${humanize(c)}</option>`).join("")}
+              </select>
+            </label>
+            <label id="severityField" style="${outcome === "success" ? "display:none" : ""}">Severity
+              <select name="severity">
+                <option value="">–</option>
+                ${SEVERITIES.map((s) => `<option value="${s}" ${s === ann.severity ? "selected" : ""}>${humanize(s)}</option>`).join("")}
               </select>
             </label>
             <label id="completionTimeField" style="${outcome !== "success" ? "display:none" : ""}">Completion time (s)
@@ -377,22 +426,33 @@ async function selectEpisode(episodeId) {
           </div>
         </fieldset>
         <div class="actions">
-          <button type="submit" class="primary">Save &amp; validate</button>
+          <button type="submit" class="primary btn-lg">Save</button>
+          <button type="button" id="validateBtn" class="btn-lg">Validate</button>
         </div>
       </form>
     </div>
 
     <div class="actions">
-      <button id="uploadBtn" class="primary">Upload</button>
-      <button id="deleteBtn" class="danger">Delete</button>
+      <button id="uploadBtn" class="primary btn-lg">Upload</button>
+      <button id="deleteBtn" class="danger btn-lg">Delete</button>
     </div>
     <div class="status-msg" id="statusMsg"></div>
   `;
+
+  const overviewToggle = document.getElementById("overviewToggle");
+  const overviewBody = document.getElementById("overviewBody");
+  overviewToggle.addEventListener("click", () => {
+    const nowHidden = !overviewBody.hidden;
+    overviewBody.hidden = nowHidden;
+    overviewToggle.classList.toggle("collapsed", nowHidden);
+  });
+  overviewToggle.classList.add("collapsed"); // starts minimized
 
   const form = document.getElementById("annForm");
   form.outcome.addEventListener("change", () => {
     const isSuccess = form.outcome.value === "success";
     document.getElementById("failureCauseField").style.display = isSuccess ? "none" : "";
+    document.getElementById("severityField").style.display = isSuccess ? "none" : "";
     document.getElementById("completionTimeField").style.display = isSuccess ? "" : "none";
   });
   form.attachment_id.addEventListener("change", () => {
@@ -400,28 +460,46 @@ async function selectEpisode(episodeId) {
     document.getElementById("stageField").style.display = a && a.composed_assembly ? "" : "none";
   });
 
-  form.addEventListener("submit", async (e) => {
-    e.preventDefault();
+  function collectAnnotationPayload() {
     const fd = new FormData(form);
     const payload = Object.fromEntries(fd.entries());
     for (const k of ["completion_time_s", "n_attempts", "n_regrasps", "stage_reached"]) {
       payload[k] = payload[k] === "" ? null : Number(payload[k]);
     }
+    if (payload.severity === "") payload.severity = null;
+    return payload;
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
     const msg = document.getElementById("statusMsg");
     try {
-      const result = await api(`/api/episodes/${episodeId}/validate`, {
-        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      await api(`/api/episodes/${episodeId}/annotate`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(collectAnnotationPayload()),
       });
+      msg.textContent = "Saved.";
+      await selectEpisode(episodeId);
+    } catch (err) {
+      msg.textContent = `Error: ${err.message}`;
+      showToast(err.message, { type: "error", title: "Save failed" });
+    }
+  });
+
+  document.getElementById("validateBtn").addEventListener("click", async () => {
+    const msg = document.getElementById("statusMsg");
+    try {
+      const result = await api(`/api/episodes/${episodeId}/validate`, { method: "POST" });
       if (result.ok) {
-        msg.textContent = "Saved and validated.";
+        msg.textContent = "Episode is valid.";
+        showToast("Episode is valid.", { type: "success", title: episodeId, timeout: 4000 });
       } else {
-        msg.textContent = "Saved, but validation failed.";
+        msg.textContent = "Validation failed.";
         showToast(result.error, { type: "error", title: `Validation failed: ${episodeId}`, timeout: 12000 });
       }
       await selectEpisode(episodeId);
     } catch (err) {
       msg.textContent = `Error: ${err.message}`;
-      showToast(err.message, { type: "error", title: "Save failed" });
+      showToast(err.message, { type: "error", title: "Validate failed" });
     }
   });
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 from datahive.attachments import is_composed_assembly
 from datahive.episode import read_header, sample_rate_hz
-from datahive.errors import ProfileIncomplete, ProfileMissing, ValidationError
+from datahive.errors import DatahiveError, ProfileIncomplete, ProfileMissing, ValidationError
 from datahive.index import Index
 from datahive.paths import resolve_episode_paths
 from datahive.profile import load_profile
@@ -103,3 +103,17 @@ def validate_episode(samples_root: Path, episode_id: str, *, update_index: bool 
             idx.set_status(episode_id, "validated")
 
     return warnings
+
+
+def bulk_validate_episodes(samples_root: Path, episode_ids: list[str]) -> list[dict]:
+    """Validates several episodes, same rules as validate_episode() applied
+    one at a time. A bad episode_id doesn't abort the batch -- it comes
+    back as an ok=False result like any other validation failure."""
+    results: list[dict] = []
+    for episode_id in episode_ids:
+        try:
+            warnings = validate_episode(samples_root, episode_id)
+            results.append({"episode_id": episode_id, "ok": True, "warnings": warnings, "error": None})
+        except DatahiveError as e:
+            results.append({"episode_id": episode_id, "ok": False, "warnings": [], "error": str(e)})
+    return results

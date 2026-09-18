@@ -118,18 +118,22 @@ def annotate(
     samples: Optional[str] = SAMPLES_OPTION,
     outcome: Optional[str] = typer.Option(None),
     failure_cause: Optional[str] = typer.Option(None),
+    severity: Optional[str] = typer.Option(None, help="minor | moderate | critical (only for non-success outcomes)"),
     completion_time_s: Optional[float] = typer.Option(None),
     n_attempts: Optional[int] = typer.Option(None),
     n_regrasps: Optional[int] = typer.Option(None),
     stage_reached: Optional[int] = typer.Option(None),
     strategy: Optional[str] = typer.Option(None),
     attachment_id: Optional[str] = typer.Option(None),
+    operator_name: Optional[str] = typer.Option(None, help="Who ran this trial"),
+    annotator_name: Optional[str] = typer.Option(None, help="Who is filling in this annotation"),
     notes: str = typer.Option(""),
     non_interactive: bool = typer.Option(False, "--non-interactive"),
 ):
     """Fills outcome/failure_cause/etc. for an episode's trial, via terminal
     prompts (unless --non-interactive and all fields are given as flags)."""
     from datahive.annotate import annotate_episode
+    from datahive.schema import FailureSeverity
 
     root = _samples_opt(samples)
 
@@ -141,10 +145,15 @@ def annotate(
     outcome = prompt_if_needed(outcome, f"outcome ({'/'.join(o.value for o in Outcome)})")
     attachment_id = prompt_if_needed(attachment_id, "attachment_id")
     strategy = prompt_if_needed(strategy, f"strategy ({'/'.join(s.value for s in Strategy)})")
+    operator_name = prompt_if_needed(operator_name, "operator_name", default="")
+    annotator_name = prompt_if_needed(annotator_name, "annotator_name", default="")
     if outcome != Outcome.success.value:
         failure_cause = prompt_if_needed(
             failure_cause, f"failure_cause ({'/'.join(c.value for c in FailureCause)})"
         )
+        if not non_interactive and severity is None:
+            raw = typer.prompt(f"severity ({'/'.join(s.value for s in FailureSeverity)}, blank to skip)", default="")
+            severity = raw or None
     else:
         completion_time_s = prompt_if_needed(completion_time_s, "completion_time_s", type=float)
     if not non_interactive and n_attempts is None:
@@ -157,13 +166,16 @@ def annotate(
 
     fields = {
         "attachment_id": attachment_id,
+        "operator_name": operator_name or "",
         "outcome": outcome,
         "failure_cause": failure_cause,
+        "severity": severity,
         "completion_time_s": completion_time_s,
         "n_attempts": n_attempts,
         "n_regrasps": n_regrasps,
         "stage_reached": stage_reached,
         "strategy": strategy,
+        "annotator_name": annotator_name or "",
         "notes": notes,
     }
     try:

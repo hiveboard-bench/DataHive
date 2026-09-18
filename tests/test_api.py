@@ -58,18 +58,29 @@ def test_trajectory_endpoint_respects_max_points(samples_root):
     assert len(data["timestamp"]) <= 50
 
 
-def test_validate_via_gui_visible_in_cli_list(samples_root):
+def test_annotate_then_validate_via_gui_visible_in_cli_list(samples_root):
+    """Save (POST .../annotate) and Validate (POST .../validate) are
+    separate calls in the GUI, matching the CLI's `datahive annotate` /
+    `datahive validate` split."""
     profile = _fill_profile(samples_root)
     make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile)
     client = _client(samples_root)
 
     resp = client.post(
-        "/api/episodes/ep1/validate",
+        "/api/episodes/ep1/annotate",
         json={
             "attachment_id": "peg_round", "outcome": "success", "completion_time_s": 4.0,
             "n_attempts": 1, "n_regrasps": 0, "strategy": "prehensile",
         },
     )
+    assert resp.status_code == 200
+    assert resp.json()["ok"] is True
+
+    # Saving alone does not validate -- status stays 'recorded'.
+    statuses = ops.list_episodes(samples_root)
+    assert statuses[0].status == "recorded"
+
+    resp = client.post("/api/episodes/ep1/validate")
     assert resp.status_code == 200
     assert resp.json()["ok"] is True
 
@@ -239,6 +250,58 @@ def test_bulk_delete_without_upload_needs_no_hub_config(samples_root):
     results = resp.json()["results"]
     assert results[0]["deleted_local"] is True
     assert results[0]["deleted_remote"] is False
+
+
+def test_annotate_saves_operator_annotator_and_severity(samples_root):
+    profile = _fill_profile(samples_root)
+    make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile)
+    client = _client(samples_root)
+
+    resp = client.post(
+        "/api/episodes/ep1/annotate",
+        json={
+            "attachment_id": "peg_round", "operator_name": "Alex", "outcome": "fail",
+            "failure_cause": "slip", "severity": "critical", "n_attempts": 2, "n_regrasps": 1,
+            "strategy": "prehensile", "annotator_name": "Sam",
+        },
+    )
+    assert resp.status_code == 200
+
+    detail = client.get("/api/episodes/ep1").json()
+    ann = detail["annotation"]
+    assert ann["operator_name"] == "Alex"
+    assert ann["annotator_name"] == "Sam"
+    assert ann["severity"] == "critical"
+
+
+def test_severity_forbidden_on_success(samples_root):
+    profile = _fill_profile(samples_root)
+    make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile)
+    client = _client(samples_root)
+
+    resp = client.post(
+        "/api/episodes/ep1/annotate",
+        json={
+            "attachment_id": "peg_round", "outcome": "success", "completion_time_s": 3.0,
+            "severity": "minor", "strategy": "prehensile",
+        },
+    )
+    assert resp.status_code == 422
+
+
+def test_bulk_validate_via_api(samples_root):
+    profile = _fill_profile(samples_root)
+    make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile)
+    make_episode(samples_root, "sess1", "ep2", trial_id="t2", profile=profile)
+    write_valid_annotation(samples_root, "sess1", "t1")
+    client = _client(samples_root)
+
+    resp = client.post("/api/episodes/bulk-validate", json={"episode_ids": ["ep1", "ep2"]})
+    assert resp.status_code == 200
+    results = {r["episode_id"]: r for r in resp.json()["results"]}
+    assert results["ep1"]["ok"] is True
+    assert results["ep2"]["ok"] is False
+    assert results["ep2"]["error"]
 
 
 def test_server_binds_localhost_only():

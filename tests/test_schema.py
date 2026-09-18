@@ -79,3 +79,41 @@ def test_csv_roundtrip_failure_row():
     assert row["failure_cause"] == "perception"
     ann2 = TrialAnnotation.from_csv_row(row)
     assert ann2.failure_cause == ann.failure_cause
+
+
+def test_severity_forbidden_on_success():
+    with pytest.raises(PydanticValidationError, match="severity"):
+        TrialAnnotation.model_validate(base(severity="minor"))
+
+
+def test_severity_allowed_but_optional_on_failure():
+    # Optional: a failed trial need not set severity...
+    TrialAnnotation.model_validate(base(outcome="fail", completion_time_s=None, failure_cause="slip"))
+    # ...but may.
+    ann = TrialAnnotation.model_validate(
+        base(outcome="fail", completion_time_s=None, failure_cause="slip", severity="critical")
+    )
+    assert ann.severity == "critical"
+
+
+def test_invalid_severity_rejected():
+    with pytest.raises(PydanticValidationError):
+        TrialAnnotation.model_validate(
+            base(outcome="fail", completion_time_s=None, failure_cause="slip", severity="nope")
+        )
+
+
+def test_operator_and_annotator_name_roundtrip():
+    ann = TrialAnnotation.model_validate(base(operator_name="Alex", annotator_name="Sam"))
+    row = ann.to_csv_row()
+    assert row["operator_name"] == "Alex"
+    assert row["annotator_name"] == "Sam"
+    ann2 = TrialAnnotation.from_csv_row(row)
+    assert ann2.operator_name == "Alex"
+    assert ann2.annotator_name == "Sam"
+
+
+def test_operator_and_annotator_name_default_blank():
+    ann = TrialAnnotation.model_validate(base())
+    assert ann.operator_name == ""
+    assert ann.annotator_name == ""

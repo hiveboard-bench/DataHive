@@ -1,0 +1,37 @@
+# Bundled HiveBoard attachment registry.
+#
+# `composed_assembly: true` marks attachments made of multiple stages that
+# must be completed in sequence (stage_reached is meaningful for these and
+# required in the trial annotation). Labs can override/extend this list by
+# placing an attachments.yaml with the same shape at the root of their
+# samples/ directory.
+peg_round:
+  name: Round peg-in-hole
+  composed_assembly: false
+peg_square:
+  name: Square peg-in-hole
+  composed_assembly: false
+lever_latch:
+  name: Lever latch
+  composed_assembly: false
+screw_cap:
+  name: Screw cap
+  composed_assembly: false
+buckle:
+  name: Buckle clasp
+  composed_assembly: false
+zipper:
+  name: Zipper pull
+  composed_assembly: false
+stacked_blocks:
+  name: Stacked block assembly
+  composed_assembly: true
+  n_stages: 3
+gear_train:
+  name: Multi-gear assembly
+  composed_assembly: true
+  n_stages: 2
+cable_routing:
+  name: Multi-clip cable routing
+  composed_assembly: true
+  n_stages: 4

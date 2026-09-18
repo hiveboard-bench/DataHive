@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>datahive-tools</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+  <header>
+    <h1>datahive-tools</h1>
+    <div class="toolbar">
+      <input id="search" type="search" placeholder="Search episode / session / trial…">
+      <select id="statusFilter">
+        <option value="">All statuses</option>
+        <option value="recorded">recorded</option>
+        <option value="validated">validated</option>
+        <option value="uploaded">uploaded</option>
+        <option value="upload_failed">upload_failed</option>
+      </select>
+      <button id="syncBtn">Sync</button>
+    </div>
+  </header>
+
+  <main>
+    <section id="list" class="episode-list"></section>
+    <section id="detail" class="episode-detail">
+      <p class="empty-hint">Select an episode to see its details.</p>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

@@ -407,7 +407,6 @@ async function selectEpisode(episodeId) {
       <h3>Annotate</h3>
       <form class="validate-form" id="annForm">
         <fieldset>
-          <legend>Trial outcome</legend>
           <div class="field-grid">
             <label>Operator name <input name="operator_name" value="${ann.operator_name || ""}" placeholder="Who ran this trial"></label>
             <label>Annotator name <input name="annotator_name" value="${ann.annotator_name || ""}" placeholder="Who is annotating"></label>

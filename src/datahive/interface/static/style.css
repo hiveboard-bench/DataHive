@@ -220,9 +220,21 @@ dl.header-fields { display: grid; grid-template-columns: max-content 1fr; gap: 0
 dl.header-fields dt { color: var(--muted); }
 dl.header-fields dd { margin: 0; }
 
-.camera-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1.2rem; }
-.camera-card { border: 1px solid var(--border); border-radius: 10px; padding: 0.75rem; }
-.camera-card .cam-name { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.5rem; }
+.detail-split { display: grid; grid-template-columns: minmax(220px, 340px) 1fr; gap: 1.5rem; align-items: start; margin-bottom: 1.1rem; }
+@media (max-width: 900px) { .detail-split { grid-template-columns: 1fr; } }
+.pane { padding: 0; }
+.pane h3 {
+  margin: 0 0 0.85rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+
+.camera-grid { display: grid; grid-template-columns: 1fr; gap: 1rem; }
+.camera-card { padding: 0; }
+.camera-card .cam-name { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; margin-bottom: 0.4rem; }
 video { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px; display: block; margin: 0; }
 
 form.validate-form { display: grid; gap: 0; }
@@ -256,8 +268,16 @@ button.btn-lg { padding: 0.65rem 1.5rem; font-size: 0.95rem; border-radius: 8px;
 .overlay-header h2 { margin: 0.2rem 0; }
 .overlay-header button { border: none; background: none; font-size: 1.1rem; }
 .problem-list { margin: 0; padding-left: 1.2rem; }
-fieldset { border: 1px solid var(--border); border-radius: 8px; margin: 0.6rem 0; }
-fieldset legend { padding: 0 0.4rem; color: var(--muted); font-size: 0.85rem; }
+fieldset { border: none; padding: 0; margin: 0 0 1rem; }
+fieldset legend {
+  padding: 0;
+  margin-bottom: 0.5rem;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 0.8rem; }
 .field-grid label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; color: var(--muted); }
 .field-grid label input, .field-grid label select, .field-grid label textarea { color: var(--fg); }

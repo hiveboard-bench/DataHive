@@ -391,18 +391,19 @@ async function selectEpisode(episodeId) {
       </div>
     </div>
 
-    <div class="card">
-      <h3>Cameras</h3>
-      <div class="camera-grid">
-        ${data.cameras.map((c) => `
-          <div class="camera-card">
-            <div class="cam-name">${c}</div>
-            <video controls src="/api/episodes/${episodeId}/video/${c}"></video>
-          </div>`).join("") || "<p class=\"empty-hint\">No videos recorded.</p>"}
+    <div class="detail-split">
+      <div class="pane camera-pane">
+        <h3>Cameras</h3>
+        <div class="camera-grid">
+          ${data.cameras.map((c) => `
+            <div class="camera-card">
+              <div class="cam-name">${c}</div>
+              <video controls src="/api/episodes/${episodeId}/video/${c}"></video>
+            </div>`).join("") || "<p class=\"empty-hint\">No videos recorded.</p>"}
+        </div>
       </div>
-    </div>
 
-    <div class="card">
+      <div class="pane annotate-pane">
       <h3>Annotate</h3>
       <form class="validate-form" id="annForm">
         <fieldset>
@@ -459,6 +460,7 @@ async function selectEpisode(episodeId) {
           <button type="button" id="validateBtn" class="btn-lg">Validate</button>
         </div>
       </form>
+      </div>
     </div>
 
     <div class="actions">

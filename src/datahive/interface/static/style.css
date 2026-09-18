@@ -284,7 +284,7 @@ dl.kv-list {
 dl.kv-list dt { color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 0.8rem; }
 dl.kv-list dd { margin: 0; word-break: break-word; }
 
-.detail-split { display: grid; grid-template-columns: minmax(240px, 1fr) minmax(240px, 1fr); gap: 1.5rem; align-items: start; margin-bottom: 1.1rem; }
+.detail-split { display: grid; grid-template-columns: minmax(260px, 3fr) minmax(240px, 2fr); gap: 1.5rem; align-items: start; margin-bottom: 1.1rem; }
 @media (max-width: 900px) { .detail-split { grid-template-columns: 1fr; } }
 .pane { padding: 0; }
 .pane h3 {

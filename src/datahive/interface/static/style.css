@@ -224,7 +224,7 @@ button.btn-lg { padding: 0.65rem 1.5rem; font-size: 0.95rem; border-radius: 8px;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  padding: 3rem 1rem;
+  padding: 2.5rem 1rem;
   overflow-y: auto;
   z-index: 100;
 }
@@ -233,9 +233,9 @@ button.btn-lg { padding: 0.65rem 1.5rem; font-size: 0.95rem; border-radius: 8px;
   background: var(--bg);
   color: var(--fg);
   border-radius: 10px;
-  padding: 1.2rem 1.5rem;
+  padding: 1.6rem 2rem;
   width: 100%;
-  max-width: 640px;
+  max-width: 860px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.3);
 }
 .overlay-header { display: flex; justify-content: space-between; align-items: center; }

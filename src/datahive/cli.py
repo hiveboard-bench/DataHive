@@ -42,13 +42,15 @@ SAMPLES_OPTION = typer.Option(None, "--samples", help="Path to the samples/ dire
 def init(
     lab_id: str = typer.Option(..., prompt=True),
     repo_id: Optional[str] = typer.Option(None, help="Defaults to sua-org/{lab_id}"),
-    platform_id: str = typer.Option(..., prompt=True),
     token: str = typer.Option(..., prompt=True, hide_input=True, help="Hugging Face token"),
     endpoint: Optional[str] = typer.Option(None, help="Custom HF endpoint (advanced)"),
     no_verify: bool = typer.Option(False, "--no-verify", help="Skip the whoami() check"),
     force: bool = typer.Option(False, "--force"),
 ):
-    """One-time setup: writes ~/.datahive/config.yaml (0600, never inside a git repo)."""
+    """One-time setup: writes ~/.datahive/config.yaml (0600, never inside a git repo).
+    platform_id isn't asked here -- it belongs to robot_profile.yaml (set
+    once per rig via `datahive new-profile`), not to the lab-wide Hub
+    config."""
     target = config_path()
     if target.exists() and not force:
         typer.echo(f"Config already exists at {target}. Pass --force to overwrite.", err=True)
@@ -56,7 +58,7 @@ def init(
 
     repo_id = repo_id or f"sua-org/{lab_id}"
     cfg = Config(
-        lab_id=lab_id, repo_id=repo_id, platform_id=platform_id, hf_token=token,
+        lab_id=lab_id, repo_id=repo_id, hf_token=token,
         endpoint=endpoint, created_at=now_iso(),
     )
 

@@ -17,7 +17,7 @@ paths, before releasing.
 1. **Init.**
    ```
    datahive init --lab-id lab_test --repo-id sua-org/lab_test \
-       --platform-id rig-01 --token <your token>
+       --token <your token>
    ```
    Confirm it prints "Token verified with the Hugging Face Hub." and that
    `~/.datahive/config.yaml` is `0600`.

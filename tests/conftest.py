@@ -68,7 +68,6 @@ def config(tmp_path) -> Config:
     cfg = Config(
         lab_id="lab_test",
         repo_id="sua-org/lab_test",
-        platform_id="rig-01",
         hf_token="hf_faketokenfaketokenfaketoken1234",
         created_at="2026-01-01T00:00:00+00:00",
     )

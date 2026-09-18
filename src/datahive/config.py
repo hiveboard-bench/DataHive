@@ -44,7 +44,6 @@ def config_path() -> Path:
 class Config:
     lab_id: str
     repo_id: str
-    platform_id: str
     hf_token: str
     endpoint: str | None = None
     created_at: str = ""
@@ -53,7 +52,6 @@ class Config:
         return {
             "lab_id": self.lab_id,
             "repo_id": self.repo_id,
-            "platform_id": self.platform_id,
             "hf_token": self.hf_token if reveal_token else mask_token(self.hf_token),
             "endpoint": self.endpoint,
             "created_at": self.created_at,
@@ -62,8 +60,7 @@ class Config:
     def __repr__(self) -> str:  # never leak the token via repr()/logging
         return (
             f"Config(lab_id={self.lab_id!r}, repo_id={self.repo_id!r}, "
-            f"platform_id={self.platform_id!r}, hf_token={mask_token(self.hf_token)!r}, "
-            f"endpoint={self.endpoint!r})"
+            f"hf_token={mask_token(self.hf_token)!r}, endpoint={self.endpoint!r})"
         )
 
     __str__ = __repr__
@@ -162,7 +159,6 @@ def load_config(*, path: Path | None = None) -> Config:
     return Config(
         lab_id=raw.get("lab_id", ""),
         repo_id=raw.get("repo_id", ""),
-        platform_id=raw.get("platform_id", ""),
         hf_token=raw.get("hf_token", ""),
         endpoint=raw.get("endpoint"),
         created_at=raw.get("created_at", ""),

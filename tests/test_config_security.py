@@ -20,7 +20,7 @@ from datahive.errors import ConfigInsideGitRepo, InsecureConfigPermissions
 
 
 def _cfg(token="hf_supersecrettoken1234567890"):
-    return Config(lab_id="lab_test", repo_id="sua-org/lab_test", platform_id="rig-01", hf_token=token, created_at="2026-01-01T00:00:00+00:00")
+    return Config(lab_id="lab_test", repo_id="sua-org/lab_test", hf_token=token, created_at="2026-01-01T00:00:00+00:00")
 
 
 def test_config_written_with_0600(tmp_path):
@@ -112,7 +112,7 @@ def test_token_never_appears_in_cli_stdout_stderr(tmp_path, monkeypatch):
     token = "hf_topsecrettoken424242"
     result = runner.invoke(
         app,
-        ["init", "--lab-id", "lab_test", "--platform-id", "rig-01", "--token", token, "--no-verify"],
+        ["init", "--lab-id", "lab_test", "--token", token, "--no-verify"],
     )
     assert token not in result.stdout
     assert token not in (result.output or "")

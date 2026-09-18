@@ -239,7 +239,7 @@ video { width: 100%; aspect-ratio: 16 / 9; background: #000; border-radius: 8px;
 
 form.validate-form { display: grid; gap: 0; }
 form.validate-form .field-grid { margin-bottom: 0; }
-.actions { display: flex; gap: 0.7rem; margin-top: 0.6rem; }
+.actions { display: flex; justify-content: flex-end; gap: 0.7rem; margin-top: 0.6rem; }
 button.btn-lg { padding: 0.65rem 1.5rem; font-size: 0.95rem; border-radius: 8px; font-weight: 600; }
 .status-msg { margin-top: 0.6rem; font-size: 0.85rem; color: var(--muted); }
 

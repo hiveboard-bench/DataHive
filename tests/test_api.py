@@ -323,6 +323,55 @@ def test_annotate_derives_completion_time_from_episode_duration(samples_root):
     assert completion_time == pytest.approx(expected, abs=0.01)
 
 
+def test_status_when_not_configured(samples_root):
+    client = _client(samples_root)  # no config fixture -> load_config() raises
+    resp = client.get("/api/status")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["configured"] is False
+    assert body["connected"] is False
+
+
+def test_status_when_connected(samples_root, fake_hub, monkeypatch):
+    from datahive import ops
+
+    profile = _fill_profile(samples_root)
+    make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile)
+    write_valid_annotation(samples_root, "sess1", "t1")
+    from datahive.validate import validate_episode
+
+    validate_episode(samples_root, "ep1")
+
+    monkeypatch.setattr(ops, "_get_hub", lambda hub, cfg=None: fake_hub)
+    client = _client(samples_root)
+    resp = client.get("/api/status")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["configured"] is True
+    assert body["connected"] is True
+    assert body["pending_count"] == 1  # ep1 is validated but not yet uploaded
+
+
+def test_status_when_hub_unreachable(samples_root, config, monkeypatch):
+    from datahive import ops
+    from datahive.errors import HubError
+
+    _fill_profile(samples_root)
+
+    class FailingHub:
+        def whoami(self):
+            raise HubError("simulated network failure")
+
+    monkeypatch.setattr(ops, "_get_hub", lambda hub, cfg=None: FailingHub())
+    client = _client(samples_root)
+    resp = client.get("/api/status")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["configured"] is True
+    assert body["connected"] is False
+    assert body["error"]
+
+
 def test_attachments_registry_matches_hiveboard_evaluation_runner(samples_root):
     """The bundled registry mirrors HiveBoard's Evaluation Runner task list
     (https://hiveboard-bench.github.io/hivedocs/benchmark/evaluation-runner):

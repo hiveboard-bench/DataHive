@@ -288,3 +288,44 @@ def list_episodes(
             )
         )
     return out
+
+
+@dataclass
+class SyncStatus:
+    """A cheap summary for a "connected to the Hub?" indicator -- doesn't
+    scan remote file lists, just whether the config exists, the Hub
+    answers, and how many local episodes still need to go up."""
+
+    configured: bool
+    connected: bool
+    repo_id: str | None = None
+    error: str | None = None
+    pending_count: int = 0
+    uploaded_count: int = 0
+    total_count: int = 0
+
+
+def get_sync_status(samples_root: Path, *, hub: Hub | None = None) -> SyncStatus:
+    try:
+        cfg = load_config()
+    except DatahiveError:
+        return SyncStatus(configured=False, connected=False)
+
+    with Index(samples_root) as idx:
+        idx.scan()
+        records = idx.all()
+    pending = sum(1 for r in records if r.needs_upload)
+    uploaded = sum(1 for r in records if r.status == "uploaded" and r.content_hash == r.uploaded_hash)
+
+    try:
+        hub_client = _get_hub(hub, cfg)
+        hub_client.whoami()  # cheap, read-only reachability check
+        return SyncStatus(
+            configured=True, connected=True, repo_id=cfg.repo_id,
+            pending_count=pending, uploaded_count=uploaded, total_count=len(records),
+        )
+    except DatahiveError as e:
+        return SyncStatus(
+            configured=True, connected=False, repo_id=cfg.repo_id, error=str(e),
+            pending_count=pending, uploaded_count=uploaded, total_count=len(records),
+        )

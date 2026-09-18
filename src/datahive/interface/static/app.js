@@ -13,6 +13,7 @@ const profileCloseBtn = document.getElementById("profileCloseBtn");
 const taskOverlay = document.getElementById("taskOverlay");
 const taskCloseBtn = document.getElementById("taskCloseBtn");
 const toastContainer = document.getElementById("toastContainer");
+const hubStatusEl = document.getElementById("hubStatus");
 const bulkBar = document.getElementById("bulkBar");
 const bulkCountEl = document.getElementById("bulkCount");
 const bulkValidateBtn = document.getElementById("bulkValidateBtn");
@@ -166,6 +167,42 @@ async function loadAttachments() {
     attachmentsCache = await api("/api/attachments");
   }
   return attachmentsCache;
+}
+
+// --- Hub sync status badge (header) ---
+
+async function refreshHubStatus() {
+  let status;
+  try {
+    status = await api("/api/status");
+  } catch (err) {
+    hubStatusEl.className = "hub-status error";
+    hubStatusEl.querySelector(".hub-status-text").textContent = "Status unavailable";
+    hubStatusEl.title = err.message;
+    return;
+  }
+
+  let cls, text, title;
+  if (!status.configured) {
+    cls = "not-configured";
+    text = "Not connected";
+    title = "No ~/.datahive/config.yaml yet -- run `datahive init`.";
+  } else if (!status.connected) {
+    cls = "error";
+    text = "Sync error";
+    title = status.error || "Could not reach the Hugging Face Hub.";
+  } else if (status.pending_count > 0) {
+    cls = "pending";
+    text = `${status.pending_count} pending`;
+    title = `${status.pending_count} episode(s) validated but not yet uploaded to ${status.repo_id}.`;
+  } else {
+    cls = "synced";
+    text = "Synced";
+    title = `${status.uploaded_count}/${status.total_count} episode(s) uploaded to ${status.repo_id}.`;
+  }
+  hubStatusEl.className = `hub-status ${cls}`;
+  hubStatusEl.querySelector(".hub-status-text").textContent = text;
+  hubStatusEl.title = title;
 }
 
 // --- Task (attachment) picker: mirrors HiveBoard's Evaluation Runner
@@ -403,6 +440,7 @@ bulkUploadBtn.addEventListener("click", async () => {
     bulkUploadBtn.disabled = false;
     selectedEpisodes.clear();
     await refreshList();
+    await refreshHubStatus();
   }
 });
 
@@ -430,6 +468,7 @@ bulkDeleteBtn.addEventListener("click", async () => {
     bulkDeleteBtn.disabled = false;
     selectedEpisodes.clear();
     await refreshList();
+    await refreshHubStatus();
   }
 });
 
@@ -567,7 +606,7 @@ async function selectEpisode(episodeId) {
             <label class="full">Strategy
               ${segmentedControlHtml("strategy", STRATEGIES, ann.strategy)}
             </label>
-            <label class="full">Notes
+            <label class="full">Note (optional)
               <textarea name="notes" placeholder="Anything else worth recording about this trial…">${ann.notes || ""}</textarea>
             </label>
           </div>
@@ -688,6 +727,7 @@ async function selectEpisode(episodeId) {
       const result = await api(`/api/episodes/${episodeId}/upload`, { method: "POST" });
       msg.textContent = result.uploaded ? "Uploaded." : `Skipped: ${result.skipped_reason || result.error}`;
       await refreshList();
+      await refreshHubStatus();
     } catch (err) {
       msg.textContent = `Error: ${err.message}`;
       showToast(err.message, { type: "error", title: "Upload failed" });
@@ -701,6 +741,7 @@ async function selectEpisode(episodeId) {
       selectedId = null;
       detailEl.innerHTML = '<p class="empty-hint">Select an episode to see its details.</p>';
       await refreshList();
+      await refreshHubStatus();
     } catch (err) {
       document.getElementById("statusMsg").textContent = `Error: ${err.message}`;
       showToast(err.message, { type: "error", title: "Delete failed" });
@@ -960,7 +1001,9 @@ syncBtn.addEventListener("click", async () => {
     syncBtn.disabled = false;
     syncBtnLabel.textContent = "Sync";
     await refreshList();
+    await refreshHubStatus();
   }
 });
 
 refreshList();
+refreshHubStatus();

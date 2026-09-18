@@ -222,4 +222,11 @@ def build_router(samples_root: Path) -> APIRouter:
             raise HTTPException(400, str(e))
         return report.__dict__
 
+    @router.get("/api/status")
+    def get_status():
+        """Cheap Hub connectivity + pending-upload summary for the header's
+        sync indicator. Never raises -- an unreachable Hub or missing
+        config is a normal state to display, not a 4xx/5xx."""
+        return ops.get_sync_status(samples_root).__dict__
+
     return router

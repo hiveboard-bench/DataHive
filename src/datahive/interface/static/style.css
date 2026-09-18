@@ -53,6 +53,28 @@ header h1 .logo { height: 1.4em; width: auto; display: block; }
   :root:not([data-theme="light"]) header h1 .logo { filter: invert(1) brightness(1.8); }
 }
 :root[data-theme="dark"] header h1 .logo { filter: invert(1) brightness(1.8); }
+
+.hub-status {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.3rem 0.7rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  font-size: 0.78rem;
+  color: var(--muted);
+  white-space: nowrap;
+  cursor: default;
+}
+.hub-status-dot { width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--muted); flex-shrink: 0; }
+.hub-status.synced .hub-status-dot { background: var(--success); }
+.hub-status.synced { color: var(--success); border-color: var(--success); }
+.hub-status.pending .hub-status-dot { background: var(--warn); }
+.hub-status.pending { color: var(--warn); border-color: var(--warn); }
+.hub-status.error .hub-status-dot { background: var(--danger); }
+.hub-status.error { color: var(--danger); border-color: var(--danger); }
+.hub-status.not-configured .hub-status-dot { background: var(--muted); }
+
 .toolbar { display: flex; align-items: center; gap: 0.5rem; flex: 1; flex-wrap: wrap; }
 .toolbar-group { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
 .toolbar-filters { flex: 1; max-width: 360px; }

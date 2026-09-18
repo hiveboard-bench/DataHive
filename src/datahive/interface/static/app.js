@@ -17,6 +17,32 @@ const bulkValidateBtn = document.getElementById("bulkValidateBtn");
 const bulkUploadBtn = document.getElementById("bulkUploadBtn");
 const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
 const bulkClearBtn = document.getElementById("bulkClearBtn");
+const themeToggleBtn = document.getElementById("themeToggleBtn");
+const themeIconMoon = document.getElementById("themeIconMoon");
+const themeIconSun = document.getElementById("themeIconSun");
+
+// --- Theme toggle. index.html's inline <head> script already applied the
+// stored/OS-preferred theme before first paint; this just wires the button
+// and persists explicit choices. ---
+const THEME_KEY = "datahive-theme";
+
+function currentTheme() {
+  return document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light";
+}
+
+function updateThemeIcon(theme) {
+  themeIconMoon.hidden = theme === "dark";
+  themeIconSun.hidden = theme !== "dark";
+}
+
+themeToggleBtn.addEventListener("click", () => {
+  const next = currentTheme() === "dark" ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", next);
+  try { localStorage.setItem(THEME_KEY, next); } catch (e) { /* ignore */ }
+  updateThemeIcon(next);
+});
+
+updateThemeIcon(currentTheme());
 
 let selectedId = null;
 let attachmentsCache = null;
@@ -546,110 +572,38 @@ async function selectEpisode(episodeId) {
 // --- Robot profile: create/edit from the interface, same file the CLI's
 // `datahive new-profile` writes and `robot_profile.yaml` on disk. ---
 
-function cameraRowHtml(cam = {}) {
+let cameraSeq = 0;
+
+function cameraEntryHtml(cam = {}) {
+  const id = `cam-${cameraSeq++}`;
   return `
-    <div class="camera-row">
-      <input placeholder="name" data-field="name" value="${cam.name || ""}">
-      <input placeholder="resolution" data-field="resolution" value="${cam.resolution || ""}">
-      <input placeholder="encoding" data-field="encoding" value="${cam.encoding || ""}">
-      <input placeholder="fps" type="number" data-field="fps" value="${cam.fps ?? ""}">
-      <input placeholder="position" data-field="position" value="${cam.position || ""}">
-      <input placeholder="orientation" data-field="orientation" value="${cam.orientation || ""}">
-      <button type="button" class="remove-camera" title="Remove">✕</button>
+    <div class="camera-entry" data-entry-id="${id}">
+      <div class="camera-entry-header">
+        <span>${cam.name ? cam.name : "New camera"}</span>
+        <button type="button" class="remove-camera" title="Remove camera">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+        </button>
+      </div>
+      <div class="field-grid">
+        <label>Name <input placeholder="external" data-field="name" value="${cam.name || ""}"></label>
+        <label>Resolution <input placeholder="1280x720" data-field="resolution" value="${cam.resolution || ""}"></label>
+        <label>Encoding <input placeholder="h264" data-field="encoding" value="${cam.encoding || ""}"></label>
+        <label>FPS <input placeholder="30" type="number" data-field="fps" value="${cam.fps ?? ""}"></label>
+        <label>Position <input placeholder="front" data-field="position" value="${cam.position || ""}"></label>
+        <label>Orientation <input placeholder="level" data-field="orientation" value="${cam.orientation || ""}"></label>
+      </div>
     </div>`;
 }
 
 function renderProfileForm(profile, problems, exists) {
-  const m = profile.manipulator || {};
-  const ee = profile.end_effector || {};
-  const ll = profile.low_level || {};
-  const cams = profile.cameras || [];
-
-  const problemsHtml = problems.length
-    ? `<ul class="problem-list">${problems.map((p) => `<li>${p}</li>`).join("")}</ul>`
-    : `<p class="status-msg">Profile is complete.</p>`;
-
-  profileBody.innerHTML = `
-    ${!exists ? `<p>No robot profile yet for this samples/ directory.</p>
-      <button id="createProfileBtn" class="primary">Create profile</button>` : `
-    <div>${problemsHtml}</div>
-    <form id="profileForm">
-      <fieldset>
-        <legend>Manipulator</legend>
-        <div class="field-grid">
-          <label>Model <input name="manipulator.model" value="${m.model || ""}"></label>
-          <label>DoF <input name="manipulator.dof" type="number" value="${m.dof ?? ""}"></label>
-          <label class="full">Joint names (comma-separated)
-            <input name="manipulator.joint_names" value="${(m.joint_names || []).join(", ")}">
-          </label>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>End effector</legend>
-        <div class="field-grid">
-          <label>Type
-            <select name="end_effector.type">
-              <option value="">--</option>
-              ${["gripper", "dexterous_hand", "prosthetic_hand"].map((v) => `<option ${ee.type === v ? "selected" : ""}>${v}</option>`).join("")}
-            </select>
-          </label>
-          <label>Actuated DoF <input name="end_effector.actuated_dof" type="number" value="${ee.actuated_dof ?? ""}"></label>
-          <label>Command modality
-            <select name="end_effector.command_modality">
-              <option value="">--</option>
-              ${["binary", "position", "velocity"].map((v) => `<option ${ee.command_modality === v ? "selected" : ""}>${v}</option>`).join("")}
-            </select>
-          </label>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Low-level control (mandatory)</legend>
-        <div class="field-grid">
-          <label>Mode
-            <select name="low_level.mode" required>
-              <option value="">--</option>
-              ${["stock", "custom"].map((v) => `<option ${ll.mode === v ? "selected" : ""}>${v}</option>`).join("")}
-            </select>
-          </label>
-          <label>Controller type <input name="low_level.controller_type" value="${ll.controller_type || ""}"></label>
-          <label>Rate (Hz) <input name="low_level.rate_hz" type="number" value="${ll.rate_hz ?? ""}"></label>
-          <label>Gains (free text) <input name="low_level.gains" value="${ll.gains ?? ""}"></label>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Cameras (at least one required)</legend>
-        <div id="cameraList">${cams.map(cameraRowHtml).join("")}</div>
-        <button type="button" id="addCameraBtn">+ Add camera</button>
-      </fieldset>
-
-      <fieldset>
-        <legend>General</legend>
-        <div class="field-grid">
-          <label>Control mode <input name="control_mode" value="${profile.control_mode || ""}"></label>
-          <label>Policy <input name="policy" value="${profile.policy || ""}"></label>
-          <label>Board mounting
-            <select name="board_mounting">
-              <option value="">--</option>
-              ${["horizontal", "vertical"].map((v) => `<option ${profile.board_mounting === v ? "selected" : ""}>${v}</option>`).join("")}
-            </select>
-          </label>
-          <label>HiveBoard version <input name="hiveboard_version" value="${profile.hiveboard_version || ""}"></label>
-          <label>Platform ID <input name="platform_id" value="${profile.platform_id || ""}"></label>
-        </div>
-      </fieldset>
-
-      <div class="actions">
-        <button type="submit" class="primary">Save profile</button>
-      </div>
-      <div class="status-msg" id="profileMsg"></div>
-    </form>
-    `}
-  `;
-
   if (!exists) {
+    profileBody.innerHTML = `
+      <div class="profile-empty">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
+        <p>No robot profile yet for this <code>samples/</code> directory.</p>
+        <p class="empty-hint">Filled in once for this rig -- every episode recorded afterward picks up these values automatically.</p>
+        <button id="createProfileBtn" class="primary btn-lg">Create profile</button>
+      </div>`;
     document.getElementById("createProfileBtn").onclick = async () => {
       try {
         const result = await api("/api/profile", { method: "POST" });
@@ -661,12 +615,108 @@ function renderProfileForm(profile, problems, exists) {
     return;
   }
 
+  const m = profile.manipulator || {};
+  const ee = profile.end_effector || {};
+  const ll = profile.low_level || {};
+  const cams = profile.cameras || [];
+
+  const problemsHtml = problems.length
+    ? `<div class="problem-banner"><ul class="problem-list">${problems.map((p) => `<li>${p}</li>`).join("")}</ul></div>`
+    : `<div class="ok-banner">Profile is complete.</div>`;
+
+  profileBody.innerHTML = `
+    <p class="profile-intro">Filled in once for this rig. Editing it only affects episodes recorded afterward -- already-recorded ones keep their original snapshot.</p>
+    ${problemsHtml}
+    <form id="profileForm">
+      <div class="card">
+        <h3>Manipulator</h3>
+        <div class="field-grid">
+          <label>Model <input name="manipulator.model" value="${m.model || ""}"></label>
+          <label>DoF <input name="manipulator.dof" type="number" value="${m.dof ?? ""}"></label>
+          <label class="full">Joint names (comma-separated)
+            <input name="manipulator.joint_names" value="${(m.joint_names || []).join(", ")}">
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>End effector</h3>
+        <div class="field-grid">
+          <label>Type
+            <select name="end_effector.type">
+              <option value="">–</option>
+              ${["gripper", "dexterous_hand", "prosthetic_hand"].map((v) => `<option value="${v}" ${ee.type === v ? "selected" : ""}>${humanize(v)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Actuated DoF <input name="end_effector.actuated_dof" type="number" value="${ee.actuated_dof ?? ""}"></label>
+          <label>Command modality
+            <select name="end_effector.command_modality">
+              <option value="">–</option>
+              ${["binary", "position", "velocity"].map((v) => `<option value="${v}" ${ee.command_modality === v ? "selected" : ""}>${humanize(v)}</option>`).join("")}
+            </select>
+          </label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Low-level control <span class="required-badge">Required</span></h3>
+        <div class="field-grid">
+          <label>Mode
+            <select name="low_level.mode" required>
+              <option value="">–</option>
+              ${["stock", "custom"].map((v) => `<option value="${v}" ${ll.mode === v ? "selected" : ""}>${humanize(v)}</option>`).join("")}
+            </select>
+          </label>
+          <label>Controller type <input name="low_level.controller_type" value="${ll.controller_type || ""}"></label>
+          <label>Rate (Hz) <input name="low_level.rate_hz" type="number" value="${ll.rate_hz ?? ""}"></label>
+          <label>Gains (free text) <input name="low_level.gains" value="${ll.gains ?? ""}"></label>
+        </div>
+      </div>
+
+      <div class="card">
+        <h3>Cameras <span class="required-badge">At least one required</span></h3>
+        <div id="cameraList" class="camera-list">${cams.map(cameraEntryHtml).join("")}</div>
+        <button type="button" id="addCameraBtn" class="btn-icon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+          <span>Add camera</span>
+        </button>
+      </div>
+
+      <div class="card">
+        <h3>General</h3>
+        <div class="field-grid">
+          <label>Control mode <input name="control_mode" value="${profile.control_mode || ""}" placeholder="joint_position"></label>
+          <label>Policy <input name="policy" value="${profile.policy || ""}" placeholder="teleop_spacemouse"></label>
+          <label>Board mounting
+            <select name="board_mounting">
+              <option value="">–</option>
+              ${["horizontal", "vertical"].map((v) => `<option value="${v}" ${profile.board_mounting === v ? "selected" : ""}>${humanize(v)}</option>`).join("")}
+            </select>
+          </label>
+          <label>HiveBoard version <input name="hiveboard_version" value="${profile.hiveboard_version || ""}"></label>
+          <label>Platform ID <input name="platform_id" value="${profile.platform_id || ""}"></label>
+        </div>
+      </div>
+
+      <div class="actions">
+        <button type="submit" class="primary btn-lg">Save profile</button>
+      </div>
+      <div class="status-msg" id="profileMsg"></div>
+    </form>
+  `;
+
+  const cameraList = document.getElementById("cameraList");
   document.getElementById("addCameraBtn").onclick = () => {
-    document.getElementById("cameraList").insertAdjacentHTML("beforeend", cameraRowHtml());
+    cameraList.insertAdjacentHTML("beforeend", cameraEntryHtml());
   };
-  document.getElementById("cameraList").addEventListener("click", (e) => {
-    if (e.target.classList.contains("remove-camera")) {
-      e.target.closest(".camera-row").remove();
+  cameraList.addEventListener("click", (e) => {
+    const btn = e.target.closest(".remove-camera");
+    if (btn) btn.closest(".camera-entry").remove();
+  });
+  cameraList.addEventListener("input", (e) => {
+    if (e.target.dataset.field === "name") {
+      const entry = e.target.closest(".camera-entry");
+      entry.querySelector(".camera-entry-header span").textContent = e.target.value || "New camera";
     }
   });
 
@@ -683,9 +733,9 @@ function renderProfileForm(profile, problems, exists) {
         payload[key] = value === "" ? null : value;
       }
     }
-    payload.cameras = Array.from(document.querySelectorAll("#cameraList .camera-row")).map((row) => {
+    payload.cameras = Array.from(document.querySelectorAll("#cameraList .camera-entry")).map((entry) => {
       const cam = {};
-      row.querySelectorAll("input").forEach((inp) => {
+      entry.querySelectorAll("input").forEach((inp) => {
         const f = inp.dataset.field;
         cam[f] = inp.value === "" ? null : (f === "fps" ? Number(inp.value) : inp.value);
       });

@@ -4,6 +4,18 @@
 <meta charset="utf-8">
 <title>DataHive</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+<script>
+  // Applied before first paint to avoid a flash of the wrong theme.
+  (function () {
+    try {
+      var stored = localStorage.getItem("datahive-theme");
+      var theme = (stored === "light" || stored === "dark")
+        ? stored
+        : (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+      document.documentElement.setAttribute("data-theme", theme);
+    } catch (e) { /* localStorage unavailable -- fall back to OS preference via CSS */ }
+  })();
+</script>
 <link rel="stylesheet" href="/style.css">
 </head>
 <body>
@@ -24,6 +36,10 @@
         <button id="syncBtn" class="btn-icon">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
           <span>Sync</span>
+        </button>
+        <button id="themeToggleBtn" class="btn-icon icon-only" title="Toggle dark mode" aria-label="Toggle dark mode">
+          <svg id="themeIconMoon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+          <svg id="themeIconSun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" hidden><circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line></svg>
         </button>
       </div>
     </div>

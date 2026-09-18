@@ -398,9 +398,10 @@ fieldset legend {
 .field-grid textarea { padding: 0.5rem 0.6rem; min-height: 4.5rem; resize: vertical; }
 .field-grid textarea::placeholder { color: var(--muted); opacity: 0.75; }
 
-.segmented { display: flex; gap: 0.4rem; width: 100%; }
+.segmented { display: flex; flex-wrap: wrap; gap: 0.4rem; width: 100%; }
 .segmented .segment {
-  flex: 1;
+  flex: 1 1 auto;
+  min-width: 90px;
   text-align: center;
   padding: 0.5rem 0.6rem;
   border: 1px solid var(--border);
@@ -411,8 +412,9 @@ fieldset legend {
   font-weight: 500;
   cursor: pointer;
 }
-.segmented .segment:hover { border-color: var(--accent); }
-.segmented .segment.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+.segmented .segment:hover { border-color: var(--muted); }
+.segmented .segment.active { background: var(--muted); border-color: var(--muted); color: var(--bg); }
+.segmented-stages .segment { flex: 1 1 160px; }
 
 .annotate-pane .field-grid { grid-template-columns: 1fr; }
 

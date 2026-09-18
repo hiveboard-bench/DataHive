@@ -101,6 +101,24 @@ function wireSegmentedControls(form) {
   });
 }
 
+// "Stage reached" as a segmented control of the selected task's actual
+// stage names (0 = "Not started") when the task has stages recorded;
+// falls back to a plain number input when it doesn't (unknown task, or
+// no stages listed).
+function stageFieldHtml(info, current) {
+  const stages = info && info.stages;
+  if (stages && stages.length) {
+    const value = current ?? "";
+    const options = [
+      { v: "0", label: "Not started" },
+      ...stages.map((name, i) => ({ v: String(i + 1), label: `${i + 1}. ${name}` })),
+    ];
+    const buttons = options.map((o) => `<button type="button" class="segment${String(value) === o.v ? " active" : ""}" data-value="${o.v}">${escapeHtml(o.label)}</button>`).join("");
+    return `<input type="hidden" name="stage_reached" value="${value}"><div class="segmented segmented-stages" data-name="stage_reached">${buttons}</div>`;
+  }
+  return `<input name="stage_reached" type="number" value="${current ?? ""}">`;
+}
+
 function formatDuration(seconds) {
   if (seconds == null) return "–";
   if (seconds < 60) return `${seconds.toFixed(1)}s`;
@@ -545,8 +563,8 @@ async function selectEpisode(episodeId) {
             </label>
             <label>Attempts <input name="n_attempts" type="number" value="${ann.n_attempts || 1}"></label>
             <label>Regrasps <input name="n_regrasps" type="number" value="${ann.n_regrasps || 0}"></label>
-            <label id="stageField" style="${composed ? "" : "display:none"}">Stage reached
-              <input name="stage_reached" type="number" value="${ann.stage_reached || ""}">
+            <label id="stageField" class="full" style="${composed ? "" : "display:none"}">Stage reached
+              <div id="stageFieldBody">${stageFieldHtml(info, ann.stage_reached)}</div>
             </label>
             <label class="full">Strategy
               ${segmentedControlHtml("strategy", STRATEGIES, ann.strategy)}
@@ -613,6 +631,8 @@ async function selectEpisode(episodeId) {
     const a = attachments[taskId];
     document.getElementById("taskPickerBtn").innerHTML = taskChipHtml(a, taskId);
     document.getElementById("stageField").style.display = a && a.composed_assembly ? "" : "none";
+    document.getElementById("stageFieldBody").innerHTML = stageFieldHtml(a, null);
+    wireSegmentedControls(form);
   }
 
   document.getElementById("taskPickerBtn").addEventListener("click", () => {

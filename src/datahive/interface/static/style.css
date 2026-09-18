@@ -398,9 +398,11 @@ fieldset legend {
 .field-grid textarea { padding: 0.5rem 0.6rem; min-height: 4.5rem; resize: vertical; }
 .field-grid textarea::placeholder { color: var(--muted); opacity: 0.75; }
 
-.segmented { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.segmented { display: flex; gap: 0.4rem; width: 100%; }
 .segmented .segment {
-  padding: 0.5rem 0.9rem;
+  flex: 1;
+  text-align: center;
+  padding: 0.5rem 0.6rem;
   border: 1px solid var(--border);
   border-radius: 999px;
   background: var(--bg);

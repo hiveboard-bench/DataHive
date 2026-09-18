@@ -176,7 +176,7 @@ function buildEpisodeRow(ep) {
     <div class="row-main">
       <div class="eid">${ep.episode_id}</div>
       <div class="meta">${ep.session_id} · trial ${ep.trial_id || "?"}${metaExtra}
-        <span class="badge ${badgeClass}">${ep.status}</span>
+        <span class="badge ${badgeClass}">${humanize(ep.status)}</span>
       </div>
     </div>`;
   row.querySelector(".row-check").addEventListener("click", (e) => {
@@ -371,7 +371,7 @@ async function selectEpisode(episodeId) {
         <h2>${episodeId}</h2>
         <div class="detail-sub">${data.header.session_id} · trial ${data.header.trial_id}</div>
       </div>
-      <span class="badge badge-lg ${statusClass}">${data.index ? data.index.status : ""}</span>
+      <span class="badge badge-lg ${statusClass}">${data.index ? humanize(data.index.status) : ""}</span>
     </div>
 
     <div class="stat-row">

@@ -510,7 +510,9 @@ async function selectEpisode(episodeId) {
   const data = await api(`/api/episodes/${episodeId}`);
   const attachments = await loadAttachments();
   const ann = data.annotation || {};
-  const outcome = ann.outcome || "success";
+  // Blank (not defaulted to "success") until the annotator actually picks
+  // one -- the rest of the form stays hidden until then.
+  const outcome = ann.outcome || "";
   const attachmentId = ann.attachment_id || "";
   const info = attachments[attachmentId];
   const composed = info ? info.composed_assembly : null;
@@ -584,31 +586,33 @@ async function selectEpisode(episodeId) {
             <label class="full">Outcome
               ${segmentedControlHtml("outcome", OUTCOMES, outcome)}
             </label>
-            <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">Failure cause
-              <select name="failure_cause">
-                ${FAILURE_CAUSES.map((c) => `<option value="${c}" ${c === ann.failure_cause ? "selected" : ""}>${humanize(c)}</option>`).join("")}
-              </select>
-            </label>
-            <label id="failureCauseDetailField" class="full" style="${(outcome === "success" || ann.failure_cause !== "other") ? "display:none" : ""}">Reason
-              <input name="failure_cause_detail" value="${ann.failure_cause_detail || ""}" placeholder="What happened?">
-            </label>
-            <label id="severityField" class="full" style="${outcome === "success" ? "display:none" : ""}">Severity
-              ${segmentedControlHtml("severity", SEVERITIES, ann.severity)}
-            </label>
-            <label id="completionTimeField" style="${outcome !== "success" ? "display:none" : ""}">Completion time
-              <input value="${formatDuration(stats.duration_s)}" disabled>
-            </label>
-            <label>Attempts <input name="n_attempts" type="number" value="${ann.n_attempts || 1}"></label>
-            <label>Regrasps <input name="n_regrasps" type="number" value="${ann.n_regrasps || 0}"></label>
-            <label id="stageField" class="full" style="${composed ? "" : "display:none"}">Stage reached
-              <div id="stageFieldBody">${stageFieldHtml(info, ann.stage_reached)}</div>
-            </label>
-            <label class="full">Strategy
-              ${segmentedControlHtml("strategy", STRATEGIES, ann.strategy)}
-            </label>
-            <label class="full">Note (optional)
-              <textarea name="notes" placeholder="Anything else worth recording about this trial…">${ann.notes || ""}</textarea>
-            </label>
+            <div id="restFields" style="${outcome ? "" : "display:none"}">
+              <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">Failure cause
+                <select name="failure_cause">
+                  ${FAILURE_CAUSES.map((c) => `<option value="${c}" ${c === ann.failure_cause ? "selected" : ""}>${humanize(c)}</option>`).join("")}
+                </select>
+              </label>
+              <label id="failureCauseDetailField" class="full" style="${(outcome === "success" || ann.failure_cause !== "other") ? "display:none" : ""}">Reason
+                <input name="failure_cause_detail" value="${ann.failure_cause_detail || ""}" placeholder="What happened?">
+              </label>
+              <label id="severityField" class="full" style="${outcome === "success" ? "display:none" : ""}">Severity
+                ${segmentedControlHtml("severity", SEVERITIES, ann.severity)}
+              </label>
+              <label id="completionTimeField" style="${outcome !== "success" ? "display:none" : ""}">Completion time
+                <input value="${formatDuration(stats.duration_s)}" disabled>
+              </label>
+              <label>Attempts <input name="n_attempts" type="number" value="${ann.n_attempts || 1}"></label>
+              <label>Regrasps <input name="n_regrasps" type="number" value="${ann.n_regrasps || 0}"></label>
+              <label id="stageField" class="full" style="${composed ? "" : "display:none"}">Stage reached
+                <div id="stageFieldBody">${stageFieldHtml(info, ann.stage_reached)}</div>
+              </label>
+              <label class="full">Strategy
+                ${segmentedControlHtml("strategy", STRATEGIES, ann.strategy)}
+              </label>
+              <label class="full">Note (optional)
+                <textarea name="notes" placeholder="Anything else worth recording about this trial…">${ann.notes || ""}</textarea>
+              </label>
+            </div>
           </div>
         </fieldset>
 
@@ -655,6 +659,7 @@ async function selectEpisode(episodeId) {
   }
 
   form.querySelector('.segmented[data-name="outcome"]').addEventListener("segmentchange", () => {
+    document.getElementById("restFields").style.display = ""; // reveal once any outcome is picked
     const isSuccess = form.outcome.value === "success";
     document.getElementById("failureCauseField").style.display = isSuccess ? "none" : "";
     document.getElementById("severityField").style.display = isSuccess ? "none" : "";

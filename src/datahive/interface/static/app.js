@@ -10,6 +10,8 @@ const profileBtn = document.getElementById("profileBtn");
 const profileOverlay = document.getElementById("profileOverlay");
 const profileBody = document.getElementById("profileBody");
 const profileCloseBtn = document.getElementById("profileCloseBtn");
+const taskOverlay = document.getElementById("taskOverlay");
+const taskCloseBtn = document.getElementById("taskCloseBtn");
 const toastContainer = document.getElementById("toastContainer");
 const bulkBar = document.getElementById("bulkBar");
 const bulkCountEl = document.getElementById("bulkCount");
@@ -124,6 +126,71 @@ async function loadAttachments() {
     attachmentsCache = await api("/api/attachments");
   }
   return attachmentsCache;
+}
+
+// --- Task (attachment) picker: mirrors HiveBoard's Evaluation Runner
+// task-selection grid (https://hiveboard-bench.github.io/hivedocs/benchmark/evaluation-runner). ---
+
+function taskChipHtml(info, taskId) {
+  if (!taskId) {
+    return `<span class="task-chip-placeholder">Select a task…</span>`;
+  }
+  const name = info ? info.name : taskId;
+  const family = info ? info.family : null;
+  const img = info && info.image ? `<img src="/tasks/${info.image}" alt="">` : `<span class="task-chip-noimg"></span>`;
+  return `
+    ${img}
+    <span class="task-chip-body">
+      <strong>${escapeHtml(name)}</strong>
+      ${family ? `<span>${escapeHtml(family)}${info.timeout ? ` · ${info.timeout}s` : ""}</span>` : ""}
+    </span>
+    <svg class="task-chip-edit" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg>
+  `;
+}
+
+function taskCardHtml(taskId, info, isCurrent) {
+  const img = info.image ? `<img src="/tasks/${info.image}" alt="">` : `<div class="task-card-noimg"></div>`;
+  return `
+    <button type="button" class="task-card${isCurrent ? " selected" : ""}" data-task-id="${taskId}">
+      ${img}
+      <span class="task-card-body">
+        <strong>${escapeHtml(info.name)}</strong>
+        <span>${escapeHtml(info.family || "")}${info.timeout ? ` · ${info.timeout}s` : ""}</span>
+        ${info.composed_assembly ? `<span class="task-count">${(info.stages || []).length || info.n_stages || ""} stages</span>` : ""}
+      </span>
+    </button>`;
+}
+
+function openTaskPicker(attachments, currentId, onSelect) {
+  const grid = document.getElementById("taskGrid");
+  const families = [];
+  const byFamily = new Map();
+  Object.entries(attachments).forEach(([id, info]) => {
+    const family = info.family || "Other";
+    if (!byFamily.has(family)) {
+      byFamily.set(family, []);
+      families.push(family);
+    }
+    byFamily.get(family).push([id, info]);
+  });
+
+  grid.innerHTML = families.map((family) => `
+    <div class="task-family-group">
+      <h4>${escapeHtml(family)}</h4>
+      <div class="task-grid">
+        ${byFamily.get(family).map(([id, info]) => taskCardHtml(id, info, id === currentId)).join("")}
+      </div>
+    </div>
+  `).join("") || `<p class="empty-hint">No attachments in the registry.</p>`;
+
+  grid.querySelectorAll(".task-card").forEach((card) => {
+    card.addEventListener("click", () => {
+      onSelect(card.dataset.taskId);
+      taskOverlay.classList.add("hidden");
+    });
+  });
+
+  taskOverlay.classList.remove("hidden");
 }
 
 // --- Episode list: grouped by day, with per-row selection checkboxes ---
@@ -431,10 +498,10 @@ async function selectEpisode(episodeId) {
           <div class="field-grid">
             <label>Operator name <input name="operator_name" value="${ann.operator_name || ""}" placeholder="Who ran this trial"></label>
             <label>Annotator name <input name="annotator_name" value="${ann.annotator_name || ""}" placeholder="Who is annotating"></label>
-            <label>Attachment
-              <input name="attachment_id" value="${attachmentId}" list="attachmentList">
+            <label class="full">Task
+              <input type="hidden" name="attachment_id" value="${attachmentId}">
+              <button type="button" id="taskPickerBtn" class="task-chip">${taskChipHtml(info, attachmentId)}</button>
             </label>
-            <datalist id="attachmentList">${Object.keys(attachments).map((a) => `<option value="${a}">`).join("")}</datalist>
             <label>Outcome
               <select name="outcome">
                 ${OUTCOMES.map((o) => `<option value="${o}" ${o === outcome ? "selected" : ""}>${humanize(o)}</option>`).join("")}
@@ -522,9 +589,16 @@ async function selectEpisode(episodeId) {
     updateFailureCauseDetailVisibility();
   });
   form.failure_cause.addEventListener("change", updateFailureCauseDetailVisibility);
-  form.attachment_id.addEventListener("change", () => {
-    const a = attachments[form.attachment_id.value];
+
+  function applyTaskSelection(taskId) {
+    form.attachment_id.value = taskId;
+    const a = attachments[taskId];
+    document.getElementById("taskPickerBtn").innerHTML = taskChipHtml(a, taskId);
     document.getElementById("stageField").style.display = a && a.composed_assembly ? "" : "none";
+  }
+
+  document.getElementById("taskPickerBtn").addEventListener("click", () => {
+    openTaskPicker(attachments, form.attachment_id.value, applyTaskSelection);
   });
 
   function collectAnnotationPayload() {
@@ -820,6 +894,11 @@ profileBtn.addEventListener("click", openProfileOverlay);
 profileCloseBtn.addEventListener("click", () => profileOverlay.classList.add("hidden"));
 profileOverlay.addEventListener("click", (e) => {
   if (e.target === profileOverlay) profileOverlay.classList.add("hidden");
+});
+
+taskCloseBtn.addEventListener("click", () => taskOverlay.classList.add("hidden"));
+taskOverlay.addEventListener("click", (e) => {
+  if (e.target === taskOverlay) taskOverlay.classList.add("hidden");
 });
 
 searchEl.addEventListener("input", refreshList);

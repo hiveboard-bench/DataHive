@@ -8,7 +8,7 @@ from datahive.trials import get_row, merge_rows, read_rows, upsert_row
 
 def _ann(trial_id, **overrides):
     data = dict(
-        trial_id=trial_id, lab_id="lab_test", platform_id="rig-01", attachment_id="peg_round",
+        trial_id=trial_id, lab_id="lab_test", platform_id="rig-01", attachment_id="valve_ball",
         date=date.today().isoformat(), outcome="success", completion_time_s=5.0, strategy="prehensile",
     )
     data.update(overrides)

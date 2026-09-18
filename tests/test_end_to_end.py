@@ -49,7 +49,7 @@ def test_full_lifecycle(samples_root, fake_hub):
     annotate_episode(
         samples_root, "ep1",
         {
-            "attachment_id": "peg_round", "outcome": "success", "completion_time_s": 9.0,
+            "attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 9.0,
             "n_attempts": 1, "n_regrasps": 0, "strategy": "prehensile",
         },
     )
@@ -118,7 +118,7 @@ def test_cli_end_to_end(tmp_path, monkeypatch):
         app,
         [
             "annotate", "ep1", "--samples", str(samples), "--non-interactive",
-            "--attachment-id", "peg_round", "--outcome", "success",
+            "--attachment-id", "valve_ball", "--outcome", "success",
             "--completion-time-s", "3.2", "--strategy", "prehensile",
             "--n-attempts", "1", "--n-regrasps", "0",
         ],

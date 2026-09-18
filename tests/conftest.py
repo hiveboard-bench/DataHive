@@ -176,7 +176,7 @@ def write_valid_annotation(samples_root: Path, session_id: str, trial_id: str, *
     from datahive.schema import TrialAnnotation
 
     data = dict(
-        trial_id=trial_id, lab_id="lab_test", platform_id="rig-01", attachment_id="peg_round",
+        trial_id=trial_id, lab_id="lab_test", platform_id="rig-01", attachment_id="valve_ball",
         date=date.today().isoformat(), outcome=outcome, strategy="prehensile",
     )
     if outcome == "success":

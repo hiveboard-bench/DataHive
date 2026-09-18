@@ -10,7 +10,7 @@ from datahive.schema import TrialAnnotation
 
 def base(**overrides):
     data = dict(
-        trial_id="t1", lab_id="lab_test", platform_id="rig-01", attachment_id="peg_round",
+        trial_id="t1", lab_id="lab_test", platform_id="rig-01", attachment_id="valve_ball",
         date=date.today().isoformat(), outcome="success", completion_time_s=10.0, strategy="prehensile",
     )
     data.update(overrides)

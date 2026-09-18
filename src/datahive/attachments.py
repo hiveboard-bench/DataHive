@@ -24,6 +24,12 @@ class AttachmentInfo:
     name: str
     composed_assembly: bool
     n_stages: int | None = None
+    family: str | None = None
+    timeout: int | None = None
+    success: str | None = None
+    reset: str | None = None
+    stages: list[str] | None = None
+    image: str | None = None
 
 
 @lru_cache(maxsize=1)
@@ -44,6 +50,12 @@ def load_registry(samples_root: Path | None = None) -> dict[str, AttachmentInfo]
             name=info.get("name", aid),
             composed_assembly=bool(info.get("composed_assembly", False)),
             n_stages=info.get("n_stages"),
+            family=info.get("family"),
+            timeout=info.get("timeout"),
+            success=info.get("success"),
+            reset=info.get("reset"),
+            stages=info.get("stages"),
+            image=info.get("image"),
         )
         for aid, info in raw.items()
     }

@@ -327,6 +327,56 @@ button.btn-lg { padding: 0.65rem 1.5rem; font-size: 0.95rem; border-radius: 8px;
   box-shadow: 0 10px 40px rgba(0,0,0,0.3);
 }
 .overlay-header { display: flex; justify-content: space-between; align-items: center; }
+.task-overlay-panel { max-width: 980px; }
+
+/* Task chip: the button that opens the picker, shown in the annotate form
+   in place of a plain attachment_id text field. */
+.task-chip {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  width: 100%;
+  padding: 0.5rem 0.7rem;
+  text-align: left;
+  background: var(--bg);
+}
+.task-chip:hover { border-color: var(--accent); }
+.task-chip img, .task-chip-noimg { width: 2.4rem; height: 2.4rem; border-radius: 6px; object-fit: cover; background: rgba(128,128,128,0.15); flex-shrink: 0; }
+.task-chip-body { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; min-width: 0; }
+.task-chip-body strong { font-size: 0.88rem; font-weight: 600; color: var(--fg); }
+.task-chip-body span { font-size: 0.75rem; color: var(--muted); }
+.task-chip-placeholder { color: var(--muted); flex: 1; }
+.task-chip-edit { width: 0.9rem; height: 0.9rem; color: var(--muted); flex-shrink: 0; }
+
+/* Task picker grid, grouped by family (Torque / Precision / Composed assembly). */
+.task-family-group { margin-bottom: 1.3rem; }
+.task-family-group h4 {
+  margin: 0 0 0.6rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.task-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 0.8rem; }
+.task-card {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  text-align: left;
+  cursor: pointer;
+}
+.task-card:hover { border-color: var(--accent); }
+.task-card.selected { border-color: var(--accent); box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent); }
+.task-card img, .task-card-noimg { width: 100%; aspect-ratio: 4 / 3; object-fit: cover; background: rgba(128,128,128,0.12); display: block; }
+.task-card-body { display: flex; flex-direction: column; gap: 0.2rem; padding: 0.6rem 0.7rem; }
+.task-card-body strong { font-size: 0.85rem; }
+.task-card-body > span { color: var(--muted); font-size: 0.72rem; }
+.task-card-body .task-count { color: var(--accent); font-weight: 600; }
 .overlay-header h2 { margin: 0.2rem 0; }
 .overlay-header button { border: none; background: none; font-size: 1.1rem; }
 .problem-list { margin: 0; padding-left: 1.2rem; }

@@ -70,7 +70,7 @@ def test_annotate_then_validate_via_gui_visible_in_cli_list(samples_root):
     resp = client.post(
         "/api/episodes/ep1/annotate",
         json={
-            "attachment_id": "peg_round", "outcome": "success", "completion_time_s": 4.0,
+            "attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 4.0,
             "n_attempts": 1, "n_regrasps": 0, "strategy": "prehensile",
         },
     )
@@ -97,7 +97,7 @@ def test_annotate_via_cli_visible_via_gui_api(samples_root):
     make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile)
     annotate_episode(
         samples_root, "ep1",
-        {"attachment_id": "peg_round", "outcome": "success", "completion_time_s": 7.0,
+        {"attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 7.0,
          "n_attempts": 1, "n_regrasps": 0, "strategy": "prehensile"},
     )
     client = _client(samples_root)
@@ -274,7 +274,7 @@ def test_annotate_saves_operator_annotator_and_severity(samples_root):
     resp = client.post(
         "/api/episodes/ep1/annotate",
         json={
-            "attachment_id": "peg_round", "operator_name": "Alex", "outcome": "fail",
+            "attachment_id": "valve_ball", "operator_name": "Alex", "outcome": "fail",
             "failure_cause": "slip", "severity": "critical", "n_attempts": 2, "n_regrasps": 1,
             "strategy": "prehensile", "annotator_name": "Sam",
         },
@@ -296,7 +296,7 @@ def test_severity_forbidden_on_success(samples_root):
     resp = client.post(
         "/api/episodes/ep1/annotate",
         json={
-            "attachment_id": "peg_round", "outcome": "success", "completion_time_s": 3.0,
+            "attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 3.0,
             "severity": "minor", "strategy": "prehensile",
         },
     )
@@ -313,7 +313,7 @@ def test_annotate_derives_completion_time_from_episode_duration(samples_root):
 
     resp = client.post(
         "/api/episodes/ep1/annotate",
-        json={"attachment_id": "peg_round", "outcome": "success", "strategy": "prehensile"},
+        json={"attachment_id": "valve_ball", "outcome": "success", "strategy": "prehensile"},
     )
     assert resp.status_code == 200
 
@@ -321,6 +321,33 @@ def test_annotate_derives_completion_time_from_episode_duration(samples_root):
     completion_time = float(detail["annotation"]["completion_time_s"])
     expected = detail["stats"]["duration_s"]
     assert completion_time == pytest.approx(expected, abs=0.01)
+
+
+def test_attachments_registry_matches_hiveboard_evaluation_runner(samples_root):
+    """The bundled registry mirrors HiveBoard's Evaluation Runner task list
+    (https://hiveboard-bench.github.io/hivedocs/benchmark/evaluation-runner):
+    13 conditions, each with family/timeout, and each task-thumbnail image
+    is actually served."""
+    client = _client(samples_root)
+    resp = client.get("/api/attachments")
+    assert resp.status_code == 200
+    registry = resp.json()
+    assert len(registry) == 13
+
+    valve = registry["valve_ball"]
+    assert valve["name"] == "Ball valve"
+    assert valve["family"] == "Torque"
+    assert valve["timeout"] == 60
+    assert valve["composed_assembly"] is False
+
+    lock = registry["lock"]
+    assert lock["composed_assembly"] is True
+    assert lock["stages"] == ["Grasp key", "Insert key vertically", "Rotate to unlock"]
+
+    for aid, info in registry.items():
+        if info["image"]:
+            img_resp = client.get(f"/tasks/{info['image']}")
+            assert img_resp.status_code == 200, f"missing thumbnail for {aid}: {info['image']}"
 
 
 def test_bulk_validate_via_api(samples_root):

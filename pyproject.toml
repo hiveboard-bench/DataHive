@@ -31,4 +31,4 @@ datahive = "datahive.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"datahive" = ["attachments.yaml", "interface/static/*"]
+"datahive" = ["attachments.yaml", "interface/static/*", "interface/static/tasks/*"]

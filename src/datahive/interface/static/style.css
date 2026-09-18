@@ -107,7 +107,11 @@ main {
 .list-group-header {
   position: sticky;
   top: 0;
-  padding: 0.4rem 1rem;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.5rem 1rem;
   font-size: 0.75rem;
   font-weight: 600;
   color: var(--muted);
@@ -115,7 +119,24 @@ main {
   letter-spacing: 0.03em;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
 }
+.list-group-header:hover { color: var(--fg); }
+.list-group-header .chevron { width: 0.85rem; height: 0.85rem; flex-shrink: 0; transition: transform 0.15s; }
+.list-group-header.collapsed .chevron { transform: rotate(-90deg); }
+.list-group-header .day-count {
+  margin-left: auto;
+  font-weight: 500;
+  color: var(--muted);
+  background: rgba(128,128,128,0.15);
+  border-radius: 999px;
+  padding: 0.05rem 0.55rem;
+  font-size: 0.7rem;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.day-rows.collapsed { display: none; }
 .episode-row {
   display: flex;
   align-items: flex-start;

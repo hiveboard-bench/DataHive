@@ -128,6 +128,34 @@ function toggleSelection(episodeId, checked) {
   updateBulkBar();
 }
 
+// Which day groups are collapsed, keyed by dayKey(). Persists across
+// refreshList() calls (in-memory, for this page load) so filtering/search
+// doesn't fight the user's collapse state.
+const collapsedDays = new Set();
+
+function buildEpisodeRow(ep) {
+  const row = document.createElement("div");
+  row.className = "episode-row" + (ep.episode_id === selectedId ? " selected" : "");
+  const badgeClass = (ep.status || "").split(" ")[0];
+  const checked = selectedEpisodes.has(ep.episode_id) ? "checked" : "";
+  const stepsLabel = ep.n_steps != null ? `${formatSteps(ep.n_steps)} steps` : null;
+  const metaExtra = stepsLabel ? ` · ${stepsLabel}` : "";
+  row.innerHTML = `
+    <input type="checkbox" class="row-check" ${checked} aria-label="Select ${ep.episode_id}">
+    <div class="row-main">
+      <div class="eid">${ep.episode_id}</div>
+      <div class="meta">${ep.session_id} · trial ${ep.trial_id || "?"}${metaExtra}
+        <span class="badge ${badgeClass}">${ep.status}</span>
+      </div>
+    </div>`;
+  row.querySelector(".row-check").addEventListener("click", (e) => {
+    e.stopPropagation();
+    toggleSelection(ep.episode_id, e.target.checked);
+  });
+  row.querySelector(".row-main").onclick = () => selectEpisode(ep.episode_id);
+  return row;
+}
+
 async function refreshList() {
   const q = encodeURIComponent(searchEl.value || "");
   const status = encodeURIComponent(statusEl.value || "");
@@ -139,39 +167,52 @@ async function refreshList() {
     if (!visibleIds.has(id)) selectedEpisodes.delete(id);
   }
 
-  listEl.innerHTML = "";
-  let currentGroup = null;
+  // Group in order of first appearance (episodes already arrive sorted
+  // newest-recorded-first from the backend).
+  const groups = [];
+  const groupsByKey = new Map();
   for (const ep of episodes) {
     const created = ep.created_at ? new Date(ep.created_at) : null;
-    const groupKey = created ? dayKey(created) : "unknown";
-    if (groupKey !== currentGroup) {
-      currentGroup = groupKey;
-      const header = document.createElement("div");
-      header.className = "list-group-header";
-      header.textContent = created ? dayLabel(created) : "Unknown date";
-      listEl.appendChild(header);
+    const key = created ? dayKey(created) : "unknown";
+    let group = groupsByKey.get(key);
+    if (!group) {
+      group = { key, label: created ? dayLabel(created) : "Unknown date", episodes: [] };
+      groupsByKey.set(key, group);
+      groups.push(group);
     }
+    group.episodes.push(ep);
+  }
 
-    const row = document.createElement("div");
-    row.className = "episode-row" + (ep.episode_id === selectedId ? " selected" : "");
-    const badgeClass = (ep.status || "").split(" ")[0];
-    const checked = selectedEpisodes.has(ep.episode_id) ? "checked" : "";
-    const stepsLabel = ep.n_steps != null ? `${formatSteps(ep.n_steps)} steps` : null;
-    const metaExtra = stepsLabel ? ` · ${stepsLabel}` : "";
-    row.innerHTML = `
-      <input type="checkbox" class="row-check" ${checked} aria-label="Select ${ep.episode_id}">
-      <div class="row-main">
-        <div class="eid">${ep.episode_id}</div>
-        <div class="meta">${ep.session_id} · trial ${ep.trial_id || "?"}${metaExtra}
-          <span class="badge ${badgeClass}">${ep.status}</span>
-        </div>
-      </div>`;
-    row.querySelector(".row-check").addEventListener("click", (e) => {
-      e.stopPropagation();
-      toggleSelection(ep.episode_id, e.target.checked);
+  listEl.innerHTML = "";
+  for (const group of groups) {
+    const isCollapsed = collapsedDays.has(group.key);
+
+    const groupEl = document.createElement("div");
+    groupEl.className = "day-group";
+
+    const header = document.createElement("div");
+    header.className = "list-group-header" + (isCollapsed ? " collapsed" : "");
+    header.innerHTML = `
+      <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+      <span class="day-label">${group.label}</span>
+      <span class="day-count">${group.episodes.length}</span>
+    `;
+
+    const rowsEl = document.createElement("div");
+    rowsEl.className = "day-rows" + (isCollapsed ? " collapsed" : "");
+    for (const ep of group.episodes) rowsEl.appendChild(buildEpisodeRow(ep));
+
+    header.addEventListener("click", () => {
+      const nowCollapsed = !rowsEl.classList.contains("collapsed");
+      rowsEl.classList.toggle("collapsed", nowCollapsed);
+      header.classList.toggle("collapsed", nowCollapsed);
+      if (nowCollapsed) collapsedDays.add(group.key);
+      else collapsedDays.delete(group.key);
     });
-    row.querySelector(".row-main").onclick = () => selectEpisode(ep.episode_id);
-    listEl.appendChild(row);
+
+    groupEl.appendChild(header);
+    groupEl.appendChild(rowsEl);
+    listEl.appendChild(groupEl);
   }
   updateBulkBar();
 }

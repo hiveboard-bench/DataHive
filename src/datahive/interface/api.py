@@ -16,7 +16,13 @@ from datahive.episode import read_header, read_trajectory
 from datahive.errors import DatahiveError
 from datahive.index import Index
 from datahive.paths import resolve_episode_paths
-from datahive.profile import load_profile
+from datahive.profile import (
+    SKELETON,
+    incompleteness_problems,
+    read_raw_profile,
+    save_profile,
+    write_profile_skeleton,
+)
 from datahive.trials import get_row
 
 
@@ -32,16 +38,49 @@ class ValidatePayload(BaseModel):
     notes: str = ""
 
 
+class ProfilePayload(BaseModel):
+    manipulator: dict = {}
+    end_effector: dict = {}
+    low_level: dict = {}
+    control_mode: Optional[str] = None
+    policy: Optional[str] = None
+    cameras: list = []
+    board_mounting: Optional[str] = None
+    hiveboard_version: Optional[str] = None
+    units_and_frames: dict = {}
+    platform_id: Optional[str] = None
+
+
 def build_router(samples_root: Path) -> APIRouter:
     router = APIRouter()
 
     @router.get("/api/profile")
     def get_profile():
+        raw = read_raw_profile(samples_root)
+        if raw is None:
+            return {"exists": False, "profile": SKELETON, "problems": incompleteness_problems(SKELETON)}
+        return {"exists": True, "profile": raw, "problems": incompleteness_problems(raw)}
+
+    @router.post("/api/profile")
+    def create_profile(force: bool = False):
+        """Creates samples/robot_profile.yaml (the same skeleton `datahive
+        new-profile` writes), so a profile can be started from the web
+        interface as well as the CLI."""
         try:
-            profile = load_profile(samples_root, allow_incomplete=True)
-        except DatahiveError as e:
-            raise HTTPException(404, str(e))
-        return profile.to_dict()
+            write_profile_skeleton(samples_root, force=force)
+        except FileExistsError as e:
+            raise HTTPException(409, str(e))
+        raw = read_raw_profile(samples_root)
+        return {"exists": True, "profile": raw, "problems": incompleteness_problems(raw)}
+
+    @router.put("/api/profile")
+    def put_profile(payload: ProfilePayload):
+        """Saves the full robot profile (create-or-update). Editing this file
+        never touches already-recorded episodes, which keep the snapshot
+        they were created with."""
+        save_profile(samples_root, payload.model_dump())
+        raw = read_raw_profile(samples_root)
+        return {"exists": True, "profile": raw, "problems": incompleteness_problems(raw)}
 
     @router.get("/api/attachments")
     def get_attachments():

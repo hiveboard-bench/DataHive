@@ -9,7 +9,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 
-from datahive.server.api import build_router
+from datahive.interface.api import build_router
 
 STATIC_DIR = Path(__file__).parent / "static"
 

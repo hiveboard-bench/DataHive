@@ -17,6 +17,7 @@
         <option value="uploaded">uploaded</option>
         <option value="upload_failed">upload_failed</option>
       </select>
+      <button id="profileBtn">Robot Profile</button>
       <button id="syncBtn">Sync</button>
     </div>
   </header>
@@ -27,6 +28,16 @@
       <p class="empty-hint">Select an episode to see its details.</p>
     </section>
   </main>
+
+  <div id="profileOverlay" class="overlay hidden">
+    <div class="overlay-panel">
+      <div class="overlay-header">
+        <h2>Robot Profile</h2>
+        <button id="profileCloseBtn" aria-label="Close">✕</button>
+      </div>
+      <div id="profileBody"></div>
+    </div>
+  </div>
 
   <script src="/app.js"></script>
 </body>

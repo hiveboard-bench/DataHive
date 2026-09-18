@@ -273,7 +273,7 @@ def serve(port: int = typer.Option(8000, "--port"), samples: Optional[str] = SAM
     """Launch the local web GUI (binds to localhost only)."""
     import uvicorn
 
-    from datahive.server.app import create_app
+    from datahive.interface.app import create_app
 
     root = _samples_opt(samples)
     application = create_app(root)

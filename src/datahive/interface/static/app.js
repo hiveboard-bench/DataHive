@@ -6,6 +6,10 @@ const detailEl = document.getElementById("detail");
 const searchEl = document.getElementById("search");
 const statusEl = document.getElementById("statusFilter");
 const syncBtn = document.getElementById("syncBtn");
+const profileBtn = document.getElementById("profileBtn");
+const profileOverlay = document.getElementById("profileOverlay");
+const profileBody = document.getElementById("profileBody");
+const profileCloseBtn = document.getElementById("profileCloseBtn");
 
 let selectedId = null;
 let attachmentsCache = null;
@@ -211,6 +215,187 @@ async function selectEpisode(episodeId) {
     }
   };
 }
+
+// --- Robot profile: create/edit from the interface, same file the CLI's
+// `datahive new-profile` writes and `robot_profile.yaml` on disk. ---
+
+function cameraRowHtml(cam = {}) {
+  return `
+    <div class="camera-row">
+      <input placeholder="name" data-field="name" value="${cam.name || ""}">
+      <input placeholder="resolution" data-field="resolution" value="${cam.resolution || ""}">
+      <input placeholder="encoding" data-field="encoding" value="${cam.encoding || ""}">
+      <input placeholder="fps" type="number" data-field="fps" value="${cam.fps ?? ""}">
+      <input placeholder="position" data-field="position" value="${cam.position || ""}">
+      <input placeholder="orientation" data-field="orientation" value="${cam.orientation || ""}">
+      <button type="button" class="remove-camera" title="Remove">✕</button>
+    </div>`;
+}
+
+function renderProfileForm(profile, problems, exists) {
+  const m = profile.manipulator || {};
+  const ee = profile.end_effector || {};
+  const ll = profile.low_level || {};
+  const cams = profile.cameras || [];
+
+  const problemsHtml = problems.length
+    ? `<ul class="problem-list">${problems.map(p => `<li>${p}</li>`).join("")}</ul>`
+    : `<p class="status-msg">Profile is complete.</p>`;
+
+  profileBody.innerHTML = `
+    ${!exists ? `<p>No robot profile yet for this samples/ directory.</p>
+      <button id="createProfileBtn" class="primary">Create profile</button>` : `
+    <div>${problemsHtml}</div>
+    <form id="profileForm">
+      <fieldset>
+        <legend>Manipulator</legend>
+        <div class="field-grid">
+          <label>Model <input name="manipulator.model" value="${m.model || ""}"></label>
+          <label>DoF <input name="manipulator.dof" type="number" value="${m.dof ?? ""}"></label>
+          <label class="full">Joint names (comma-separated)
+            <input name="manipulator.joint_names" value="${(m.joint_names || []).join(", ")}">
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>End effector</legend>
+        <div class="field-grid">
+          <label>Type
+            <select name="end_effector.type">
+              <option value="">--</option>
+              ${["gripper", "dexterous_hand", "prosthetic_hand"].map(v => `<option ${ee.type === v ? "selected" : ""}>${v}</option>`).join("")}
+            </select>
+          </label>
+          <label>Actuated DoF <input name="end_effector.actuated_dof" type="number" value="${ee.actuated_dof ?? ""}"></label>
+          <label>Command modality
+            <select name="end_effector.command_modality">
+              <option value="">--</option>
+              ${["binary", "position", "velocity"].map(v => `<option ${ee.command_modality === v ? "selected" : ""}>${v}</option>`).join("")}
+            </select>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Low-level control (mandatory)</legend>
+        <div class="field-grid">
+          <label>Mode
+            <select name="low_level.mode" required>
+              <option value="">--</option>
+              ${["stock", "custom"].map(v => `<option ${ll.mode === v ? "selected" : ""}>${v}</option>`).join("")}
+            </select>
+          </label>
+          <label>Controller type <input name="low_level.controller_type" value="${ll.controller_type || ""}"></label>
+          <label>Rate (Hz) <input name="low_level.rate_hz" type="number" value="${ll.rate_hz ?? ""}"></label>
+          <label>Gains (free text) <input name="low_level.gains" value="${ll.gains ?? ""}"></label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Cameras (at least one required)</legend>
+        <div id="cameraList">${cams.map(cameraRowHtml).join("")}</div>
+        <button type="button" id="addCameraBtn">+ Add camera</button>
+      </fieldset>
+
+      <fieldset>
+        <legend>General</legend>
+        <div class="field-grid">
+          <label>Control mode <input name="control_mode" value="${profile.control_mode || ""}"></label>
+          <label>Policy <input name="policy" value="${profile.policy || ""}"></label>
+          <label>Board mounting
+            <select name="board_mounting">
+              <option value="">--</option>
+              ${["horizontal", "vertical"].map(v => `<option ${profile.board_mounting === v ? "selected" : ""}>${v}</option>`).join("")}
+            </select>
+          </label>
+          <label>HiveBoard version <input name="hiveboard_version" value="${profile.hiveboard_version || ""}"></label>
+          <label>Platform ID <input name="platform_id" value="${profile.platform_id || ""}"></label>
+        </div>
+      </fieldset>
+
+      <div class="actions">
+        <button type="submit" class="primary">Save profile</button>
+      </div>
+      <div class="status-msg" id="profileMsg"></div>
+    </form>
+    `}
+  `;
+
+  if (!exists) {
+    document.getElementById("createProfileBtn").onclick = async () => {
+      try {
+        const result = await api("/api/profile", { method: "POST" });
+        renderProfileForm(result.profile, result.problems, result.exists);
+      } catch (err) {
+        profileBody.innerHTML += `<p class="status-msg">Error: ${err.message}</p>`;
+      }
+    };
+    return;
+  }
+
+  document.getElementById("addCameraBtn").onclick = () => {
+    document.getElementById("cameraList").insertAdjacentHTML("beforeend", cameraRowHtml());
+  };
+  document.getElementById("cameraList").addEventListener("click", (e) => {
+    if (e.target.classList.contains("remove-camera")) {
+      e.target.closest(".camera-row").remove();
+    }
+  });
+
+  const form = document.getElementById("profileForm");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(form);
+    const payload = { manipulator: {}, end_effector: {}, low_level: {} };
+    for (const [key, value] of fd.entries()) {
+      if (key.includes(".")) {
+        const [group, field] = key.split(".");
+        payload[group][field] = value === "" ? null : (field === "dof" || field === "actuated_dof" || field === "rate_hz" ? Number(value) : (field === "joint_names" ? value.split(",").map(s => s.trim()).filter(Boolean) : value));
+      } else {
+        payload[key] = value === "" ? null : value;
+      }
+    }
+    payload.cameras = Array.from(document.querySelectorAll("#cameraList .camera-row")).map(row => {
+      const cam = {};
+      row.querySelectorAll("input").forEach(inp => {
+        const f = inp.dataset.field;
+        cam[f] = inp.value === "" ? null : (f === "fps" ? Number(inp.value) : inp.value);
+      });
+      return cam;
+    }).filter(c => c.name);
+    payload.units_and_frames = profile.units_and_frames || {};
+
+    const msg = document.getElementById("profileMsg");
+    try {
+      const result = await api("/api/profile", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload),
+      });
+      msg.textContent = result.problems.length ? `Saved, but still incomplete (${result.problems.length} issue(s)).` : "Saved. Profile is complete.";
+      renderProfileForm(result.profile, result.problems, result.exists);
+      attachmentsCache = null; // harmless cache-bust
+      await refreshList();
+    } catch (err) {
+      msg.textContent = `Error: ${err.message}`;
+    }
+  });
+}
+
+async function openProfileOverlay() {
+  profileOverlay.classList.remove("hidden");
+  try {
+    const result = await api("/api/profile");
+    renderProfileForm(result.profile, result.problems, result.exists);
+  } catch (err) {
+    profileBody.innerHTML = `<p class="status-msg">Error: ${err.message}</p>`;
+  }
+}
+
+profileBtn.addEventListener("click", openProfileOverlay);
+profileCloseBtn.addEventListener("click", () => profileOverlay.classList.add("hidden"));
+profileOverlay.addEventListener("click", (e) => {
+  if (e.target === profileOverlay) profileOverlay.classList.add("hidden");
+});
 
 searchEl.addEventListener("input", refreshList);
 statusEl.addEventListener("change", refreshList);

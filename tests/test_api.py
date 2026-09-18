@@ -7,7 +7,7 @@ from datahive import ops
 from datahive.index import Index
 from datahive.paths import profile_path
 from datahive.profile import load_profile, write_profile_skeleton
-from datahive.server.app import create_app
+from datahive.interface.app import create_app
 
 from conftest import make_episode, write_valid_annotation
 
@@ -120,6 +120,61 @@ def test_upload_and_delete_via_gui_use_same_mocked_hub(samples_root, fake_hub, m
 
     with Index(samples_root) as idx:
         assert idx.get("ep1") is None
+
+
+def test_get_profile_when_missing(samples_root):
+    client = _client(samples_root)
+    resp = client.get("/api/profile")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["exists"] is False
+    assert "low_level.mode is not set" in " ".join(body["problems"])
+
+
+def test_create_profile_via_api(samples_root):
+    client = _client(samples_root)
+    resp = client.post("/api/profile")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["exists"] is True
+    assert (samples_root / "robot_profile.yaml").is_file()
+
+    # Creating again without force is refused.
+    resp2 = client.post("/api/profile")
+    assert resp2.status_code == 409
+
+
+def test_update_profile_via_api_completes_it(samples_root):
+    client = _client(samples_root)
+    client.post("/api/profile")
+
+    payload = {
+        "manipulator": {"model": "TestArm", "dof": 6, "joint_names": ["j1", "j2"]},
+        "end_effector": {"type": "gripper", "actuated_dof": 1, "command_modality": "position"},
+        "low_level": {"mode": "stock", "controller_type": "pid", "rate_hz": 500, "gains": None},
+        "control_mode": "joint_position",
+        "policy": None,
+        "cameras": [{"name": "external", "resolution": "1280x720", "encoding": "h264", "fps": 30}],
+        "board_mounting": "horizontal",
+        "hiveboard_version": "v2",
+        "units_and_frames": {},
+        "platform_id": "rig-01",
+    }
+    resp = client.put("/api/profile", json=payload)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["problems"] == []
+
+    # The same file `datahive validate` / EpisodeWriter read.
+    profile = load_profile(samples_root)
+    assert profile.manipulator["model"] == "TestArm"
+
+    # And an episode can now be built and validated against it.
+    make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile)
+    write_valid_annotation(samples_root, "sess1", "t1")
+    from datahive.validate import validate_episode
+
+    validate_episode(samples_root, "ep1")
 
 
 def test_server_binds_localhost_only():

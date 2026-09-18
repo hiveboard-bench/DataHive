@@ -110,7 +110,10 @@ def write_profile_skeleton(samples_root: Path, *, force: bool = False) -> Path:
     return path
 
 
-def _incompleteness_problems(raw: dict[str, Any]) -> list[str]:
+def incompleteness_problems(raw: dict[str, Any]) -> list[str]:
+    """The mandatory-field checks shared by `datahive validate`, the CLI's
+    profile loader, and the GUI's profile editor (so all three agree on
+    what "complete" means)."""
     problems: list[str] = []
     low_level = raw.get("low_level") or {}
     if not low_level.get("mode"):
@@ -127,15 +130,28 @@ def _incompleteness_problems(raw: dict[str, Any]) -> list[str]:
     return problems
 
 
+# Back-compat alias (kept private-looking name in case other code imports it).
+_incompleteness_problems = incompleteness_problems
+
+
+def read_raw_profile(samples_root: Path) -> dict[str, Any] | None:
+    """Returns the profile file's raw dict, or None if it doesn't exist yet."""
+    path = profile_path(samples_root)
+    if not path.is_file():
+        return None
+    return yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+
+
 def load_profile(samples_root: Path, *, allow_incomplete: bool = False) -> RobotProfile:
     path = profile_path(samples_root)
     if not path.is_file():
         raise ProfileMissing(
             f"No robot profile found at {path}. Run `datahive new-profile` "
-            "and fill it in before recording or validating episodes."
+            "(or create one from the web interface) and fill it in before "
+            "recording or validating episodes."
         )
     raw = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
-    problems = _incompleteness_problems(raw)
+    problems = incompleteness_problems(raw)
     if problems and not allow_incomplete:
         bullets = "\n".join(f"  - {p}" for p in problems)
         raise ProfileIncomplete(
@@ -143,6 +159,20 @@ def load_profile(samples_root: Path, *, allow_incomplete: bool = False) -> Robot
             "Fill in these fields before recording or validating episodes."
         )
     return RobotProfile.from_dict(raw)
+
+
+def save_profile(samples_root: Path, data: dict[str, Any]) -> Path:
+    """Writes a full robot_profile.yaml from a plain dict (e.g. the payload
+    submitted by the web interface's profile form). Missing top-level keys
+    are filled in from the skeleton so the file always has the full shape,
+    and the same completeness rules apply as for a hand-edited file --
+    callers should check `incompleteness_problems()` themselves if they
+    need to warn the user, `save_profile` does not block on it."""
+    path = profile_path(samples_root)
+    merged: dict[str, Any] = {**SKELETON, **data}
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(yaml.safe_dump(merged, sort_keys=False), encoding="utf-8")
+    return path
 
 
 def profile_snapshot(profile: RobotProfile) -> dict[str, Any]:

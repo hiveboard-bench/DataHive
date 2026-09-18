@@ -87,3 +87,36 @@ form.validate-form label { display: flex; flex-direction: column; gap: 0.2rem; f
 .actions button.danger { border-color: var(--danger); color: var(--danger); }
 .actions button.primary { border-color: var(--accent); color: var(--accent); }
 .status-msg { margin-top: 0.5rem; font-size: 0.85rem; }
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.4);
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 3rem 1rem;
+  overflow-y: auto;
+  z-index: 100;
+}
+.overlay.hidden { display: none; }
+.overlay-panel {
+  background: var(--bg);
+  color: var(--fg);
+  border-radius: 10px;
+  padding: 1.2rem 1.5rem;
+  width: 100%;
+  max-width: 640px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.3);
+}
+.overlay-header { display: flex; justify-content: space-between; align-items: center; }
+.overlay-header h2 { margin: 0.2rem 0; }
+.overlay-header button { border: none; background: none; font-size: 1.1rem; }
+.problem-list { color: var(--warn); font-size: 0.85rem; padding-left: 1.2rem; }
+fieldset { border: 1px solid var(--border); border-radius: 8px; margin: 0.6rem 0; }
+fieldset legend { padding: 0 0.4rem; color: var(--muted); font-size: 0.85rem; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 0.8rem; }
+.field-grid label { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; }
+.field-grid label.full { grid-column: 1 / -1; }
+.camera-row { display: grid; grid-template-columns: repeat(6, 1fr) auto; gap: 0.3rem; margin-bottom: 0.4rem; align-items: center; }
+.camera-row input { width: 100%; }

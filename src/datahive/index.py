@@ -30,7 +30,10 @@ CREATE TABLE IF NOT EXISTS episodes (
     last_error     TEXT,
     first_seen_at  TEXT NOT NULL,
     updated_at     TEXT NOT NULL,
-    last_synced_at TEXT
+    last_synced_at TEXT,
+    created_at     TEXT,
+    n_steps        INTEGER,
+    duration_s     REAL
 );
 CREATE INDEX IF NOT EXISTS episodes_status_idx ON episodes(status);
 """
@@ -48,6 +51,9 @@ class EpisodeRecord:
     first_seen_at: str
     updated_at: str
     last_synced_at: str | None
+    created_at: str | None = None
+    n_steps: int | None = None
+    duration_s: float | None = None
 
     @property
     def effective_status(self) -> str:
@@ -76,7 +82,15 @@ class Index:
         self.conn.execute("PRAGMA journal_mode=WAL")
         self.conn.execute("PRAGMA busy_timeout=5000")
         self.conn.executescript(_SCHEMA)
+        self._ensure_columns()
         self.conn.commit()
+
+    def _ensure_columns(self) -> None:
+        """Migration for index.db files created before these columns existed."""
+        cols = [row[1] for row in self.conn.execute("PRAGMA table_info(episodes)").fetchall()]
+        for name, sql_type in (("created_at", "TEXT"), ("n_steps", "INTEGER"), ("duration_s", "REAL")):
+            if name not in cols:
+                self.conn.execute(f"ALTER TABLE episodes ADD COLUMN {name} {sql_type}")
 
     def __enter__(self) -> "Index":
         return self
@@ -108,39 +122,81 @@ class Index:
             params.extend([like, like, like])
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
-        sql += " ORDER BY updated_at DESC"
+        # Group-by-day in the GUI relies on created_at (the episode's own
+        # recording timestamp, from its header) as the primary sort key;
+        # rows without one (shouldn't normally happen) sort last.
+        sql += " ORDER BY (created_at IS NULL), created_at DESC, updated_at DESC"
         cur = self.conn.execute(sql, params)
         return [self._row_to_record(r) for r in cur.fetchall()]
 
-    def _upsert_new(self, episode_id: str, session_id: str, trial_id: str | None) -> None:
+    def _upsert_new(
+        self,
+        episode_id: str,
+        session_id: str,
+        trial_id: str | None,
+        created_at: str | None,
+        n_steps: int | None,
+        duration_s: float | None,
+    ) -> None:
         now = now_iso()
         with self.conn:
             self.conn.execute(
                 """INSERT INTO episodes
                    (episode_id, session_id, trial_id, status, content_hash,
-                    uploaded_hash, last_error, first_seen_at, updated_at, last_synced_at)
-                   VALUES (?, ?, ?, 'recorded', NULL, NULL, NULL, ?, ?, NULL)
+                    uploaded_hash, last_error, first_seen_at, updated_at, last_synced_at,
+                    created_at, n_steps, duration_s)
+                   VALUES (?, ?, ?, 'recorded', NULL, NULL, NULL, ?, ?, NULL, ?, ?, ?)
                    ON CONFLICT(episode_id) DO NOTHING""",
-                (episode_id, session_id, trial_id, now, now),
+                (episode_id, session_id, trial_id, now, now, created_at, n_steps, duration_s),
             )
 
     def scan(self) -> list[str]:
         """Scan samples/ for episode folders not yet in the index; add them
-        as 'recorded'. Returns newly-added episode_ids."""
-        from datahive.episode import read_header
+        as 'recorded'. Returns newly-added episode_ids. Also backfills
+        created_at/n_steps/duration_s for rows added before those columns
+        existed."""
+        from datahive.episode import episode_stats, read_header
+
+        def _h5_path(session_id: str, episode_id: str) -> Path:
+            return self.samples_root / session_id / "episodes" / f"{episode_id}.h5"
+
+        def _read_header_safe(session_id: str, episode_id: str):
+            try:
+                return read_header(_h5_path(session_id, episode_id))
+            except Exception:
+                return None
+
+        def _stats_safe(session_id: str, episode_id: str) -> dict:
+            try:
+                return episode_stats(_h5_path(session_id, episode_id))
+            except Exception:
+                return {"n_steps": None, "duration_s": None}
 
         newly_added: list[str] = []
         for session_id, episode_id in iter_all_episode_ids(self.samples_root):
             if self.get(episode_id) is not None:
                 continue
-            trial_id = None
-            try:
-                h5_path = self.samples_root / session_id / "episodes" / f"{episode_id}.h5"
-                trial_id = read_header(h5_path).trial_id
-            except Exception:
-                trial_id = None
-            self._upsert_new(episode_id, session_id, trial_id)
+            header = _read_header_safe(session_id, episode_id)
+            trial_id = header.trial_id if header else None
+            created_at = header.created_at.isoformat() if header else None
+            stats = _stats_safe(session_id, episode_id)
+            self._upsert_new(
+                episode_id, session_id, trial_id, created_at, stats["n_steps"], stats["duration_s"]
+            )
             newly_added.append(episode_id)
+
+        for rec in self.all():
+            if rec.created_at and rec.n_steps is not None:
+                continue
+            header = _read_header_safe(rec.session_id, rec.episode_id)
+            created_at = header.created_at.isoformat() if header else rec.created_at
+            stats = _stats_safe(rec.session_id, rec.episode_id)
+            with self.conn:
+                self.conn.execute(
+                    "UPDATE episodes SET created_at = ?, n_steps = ?, duration_s = ? WHERE episode_id = ?",
+                    (created_at, stats["n_steps"], stats["duration_s"], rec.episode_id),
+                )
+
         return newly_added
 
     def set_status(self, episode_id: str, status: str, *, error: str | None = None) -> None:

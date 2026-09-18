@@ -12,7 +12,7 @@ from pydantic import BaseModel
 
 from datahive import ops
 from datahive.attachments import load_registry
-from datahive.episode import read_header, read_trajectory
+from datahive.episode import episode_stats, read_header, read_trajectory
 from datahive.errors import DatahiveError
 from datahive.index import Index
 from datahive.paths import resolve_episode_paths
@@ -36,6 +36,10 @@ class ValidatePayload(BaseModel):
     stage_reached: Optional[int] = None
     strategy: Optional[str] = None
     notes: str = ""
+
+
+class BulkIdsPayload(BaseModel):
+    episode_ids: list[str]
 
 
 class ProfilePayload(BaseModel):
@@ -95,6 +99,18 @@ def build_router(samples_root: Path) -> APIRouter:
             raise HTTPException(400, str(e))
         return [e.__dict__ for e in episodes]
 
+    @router.post("/api/episodes/bulk-upload")
+    def bulk_upload(payload: BulkIdsPayload, force: bool = False):
+        """Uploads several episodes in one call, reusing the same Hub
+        client (and the same ops.upload_episode a single upload uses)."""
+        results = ops.bulk_upload_episodes(samples_root, payload.episode_ids, force=force)
+        return {"results": [r.__dict__ for r in results]}
+
+    @router.post("/api/episodes/bulk-delete")
+    def bulk_delete(payload: BulkIdsPayload, remote: bool = True):
+        results = ops.bulk_delete_episodes(samples_root, payload.episode_ids, delete_remote=remote)
+        return {"results": [r.__dict__ for r in results]}
+
     @router.get("/api/episodes/{episode_id}")
     def get_episode(episode_id: str):
         try:
@@ -113,6 +129,7 @@ def build_router(samples_root: Path) -> APIRouter:
             "index": vars(rec) if rec else None,
             "cameras": sorted(paths.videos.keys()),
             "has_setup_image": paths.setup_jpg.exists(),
+            "stats": episode_stats(paths.h5),
         }
 
     @router.get("/api/episodes/{episode_id}/trajectory")

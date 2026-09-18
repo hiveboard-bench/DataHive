@@ -11,9 +11,15 @@ const profileOverlay = document.getElementById("profileOverlay");
 const profileBody = document.getElementById("profileBody");
 const profileCloseBtn = document.getElementById("profileCloseBtn");
 const toastContainer = document.getElementById("toastContainer");
+const bulkBar = document.getElementById("bulkBar");
+const bulkCountEl = document.getElementById("bulkCount");
+const bulkUploadBtn = document.getElementById("bulkUploadBtn");
+const bulkDeleteBtn = document.getElementById("bulkDeleteBtn");
+const bulkClearBtn = document.getElementById("bulkClearBtn");
 
 let selectedId = null;
 let attachmentsCache = null;
+const selectedEpisodes = new Set();
 
 async function api(path, opts) {
   const res = await fetch(path, opts);
@@ -29,16 +35,43 @@ async function api(path, opts) {
   return res.json();
 }
 
-const TOAST_ICONS = {
-  error: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
-  success: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>',
-};
-
 function escapeHtml(str) {
   const div = document.createElement("div");
   div.textContent = str;
   return div.innerHTML;
 }
+
+// Turns "safety_stop" into "Safety stop" -- used wherever an enum value
+// (outcome, failure_cause, ...) is shown as a human-facing label. The
+// underlying <option value="..."> keeps the raw lowercase value.
+function humanize(value) {
+  if (!value) return "";
+  const s = String(value).replace(/_/g, " ");
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+function formatDuration(seconds) {
+  if (seconds == null) return "–";
+  if (seconds < 60) return `${seconds.toFixed(1)}s`;
+  const m = Math.floor(seconds / 60);
+  const s = Math.round(seconds % 60);
+  return `${m}m ${s}s`;
+}
+
+function formatRate(hz) {
+  return hz == null ? "–" : `${hz.toFixed(0)} Hz`;
+}
+
+function formatSteps(n) {
+  return n == null ? "–" : n.toLocaleString();
+}
+
+// --- Toasts (top-of-page popups for errors/successes) ---
+
+const TOAST_ICONS = {
+  error: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
+  success: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>',
+};
 
 function showToast(message, { type = "error", title, timeout = 7000 } = {}) {
   const toast = document.createElement("div");
@@ -66,65 +99,142 @@ async function loadAttachments() {
   return attachmentsCache;
 }
 
+// --- Episode list: grouped by day, with per-row selection checkboxes ---
+
+function dayKey(date) {
+  return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+function dayLabel(date) {
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (dayKey(date) === dayKey(now)) return "Today";
+  if (dayKey(date) === dayKey(yesterday)) return "Yesterday";
+  const opts = { weekday: "short", month: "short", day: "numeric" };
+  if (date.getFullYear() !== now.getFullYear()) opts.year = "numeric";
+  return date.toLocaleDateString(undefined, opts);
+}
+
+function updateBulkBar() {
+  const n = selectedEpisodes.size;
+  bulkBar.classList.toggle("hidden", n === 0);
+  bulkCountEl.textContent = `${n} selected`;
+}
+
+function toggleSelection(episodeId, checked) {
+  if (checked) selectedEpisodes.add(episodeId);
+  else selectedEpisodes.delete(episodeId);
+  updateBulkBar();
+}
+
 async function refreshList() {
   const q = encodeURIComponent(searchEl.value || "");
   const status = encodeURIComponent(statusEl.value || "");
   const episodes = await api(`/api/episodes?q=${q}&status=${status}`);
+
+  // Drop selections for episodes that fell out of the current view.
+  const visibleIds = new Set(episodes.map((e) => e.episode_id));
+  for (const id of Array.from(selectedEpisodes)) {
+    if (!visibleIds.has(id)) selectedEpisodes.delete(id);
+  }
+
   listEl.innerHTML = "";
+  let currentGroup = null;
   for (const ep of episodes) {
+    const created = ep.created_at ? new Date(ep.created_at) : null;
+    const groupKey = created ? dayKey(created) : "unknown";
+    if (groupKey !== currentGroup) {
+      currentGroup = groupKey;
+      const header = document.createElement("div");
+      header.className = "list-group-header";
+      header.textContent = created ? dayLabel(created) : "Unknown date";
+      listEl.appendChild(header);
+    }
+
     const row = document.createElement("div");
     row.className = "episode-row" + (ep.episode_id === selectedId ? " selected" : "");
     const badgeClass = (ep.status || "").split(" ")[0];
+    const checked = selectedEpisodes.has(ep.episode_id) ? "checked" : "";
+    const stepsLabel = ep.n_steps != null ? `${formatSteps(ep.n_steps)} steps` : null;
+    const metaExtra = stepsLabel ? ` · ${stepsLabel}` : "";
     row.innerHTML = `
-      <div class="eid">${ep.episode_id}</div>
-      <div class="meta">${ep.session_id} · trial ${ep.trial_id || "?"}
-        <span class="badge ${badgeClass}">${ep.status}</span>
+      <input type="checkbox" class="row-check" ${checked} aria-label="Select ${ep.episode_id}">
+      <div class="row-main">
+        <div class="eid">${ep.episode_id}</div>
+        <div class="meta">${ep.session_id} · trial ${ep.trial_id || "?"}${metaExtra}
+          <span class="badge ${badgeClass}">${ep.status}</span>
+        </div>
       </div>`;
-    row.onclick = () => selectEpisode(ep.episode_id);
+    row.querySelector(".row-check").addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleSelection(ep.episode_id, e.target.checked);
+    });
+    row.querySelector(".row-main").onclick = () => selectEpisode(ep.episode_id);
     listEl.appendChild(row);
   }
+  updateBulkBar();
 }
 
-function drawTrajectory(canvas, traj) {
-  const ctx = canvas.getContext("2d");
-  const w = (canvas.width = canvas.clientWidth * 2);
-  const h = (canvas.height = 260 * 2);
-  ctx.clearRect(0, 0, w, h);
-  const ts = traj.timestamp;
-  const series = traj.joint_position;
-  if (!ts || !series || !ts.length) {
-    ctx.fillText("No proprioception data", 20, 40);
-    return;
-  }
-  const nJoints = Array.isArray(series[0]) ? series[0].length : 1;
-  const colors = ["#2563eb", "#16a34a", "#d97706", "#dc2626", "#7c3aed", "#0891b2", "#db2777"];
-  const tmin = ts[0], tmax = ts[ts.length - 1];
-  const allVals = [];
-  for (const row of series) {
-    if (Array.isArray(row)) allVals.push(...row); else allVals.push(row);
-  }
-  const vmin = Math.min(...allVals), vmax = Math.max(...allVals);
-  const pad = 30;
-  const x = (t) => pad + ((t - tmin) / (tmax - tmin || 1)) * (w - 2 * pad);
-  const y = (v) => h - pad - ((v - vmin) / (vmax - vmin || 1)) * (h - 2 * pad);
-
-  ctx.strokeStyle = "#9ca3af";
-  ctx.beginPath();
-  ctx.moveTo(pad, pad); ctx.lineTo(pad, h - pad); ctx.lineTo(w - pad, h - pad);
-  ctx.stroke();
-
-  for (let j = 0; j < nJoints; j++) {
-    ctx.strokeStyle = colors[j % colors.length];
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ts.forEach((t, i) => {
-      const v = nJoints > 1 ? series[i][j] : series[i];
-      const px = x(t), py = y(v);
-      if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+bulkUploadBtn.addEventListener("click", async () => {
+  const ids = Array.from(selectedEpisodes);
+  if (!ids.length) return;
+  bulkUploadBtn.disabled = true;
+  try {
+    const { results } = await api("/api/episodes/bulk-upload", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ episode_ids: ids }),
     });
-    ctx.stroke();
+    const succeeded = results.filter((r) => r.uploaded);
+    const failed = results.filter((r) => !r.uploaded);
+    if (succeeded.length) {
+      showToast(`Uploaded ${succeeded.length} episode(s).`, { type: "success", title: "Bulk upload", timeout: 4000 });
+    }
+    if (failed.length) {
+      const detail = failed.map((r) => `${r.episode_id}: ${r.error || r.skipped_reason || "failed"}`).join("\n");
+      showToast(detail, { type: "error", title: `${failed.length} episode(s) not uploaded`, timeout: 12000 });
+    }
+  } catch (err) {
+    showToast(err.message, { type: "error", title: "Bulk upload failed" });
+  } finally {
+    bulkUploadBtn.disabled = false;
+    selectedEpisodes.clear();
+    await refreshList();
   }
-}
+});
+
+bulkDeleteBtn.addEventListener("click", async () => {
+  const ids = Array.from(selectedEpisodes);
+  if (!ids.length) return;
+  if (!confirm(`Delete ${ids.length} episode(s)? This also removes uploaded ones from the Hub.`)) return;
+  bulkDeleteBtn.disabled = true;
+  try {
+    const { results } = await api("/api/episodes/bulk-delete", {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ episode_ids: ids }),
+    });
+    const failed = results.filter((r) => !r.deleted_local);
+    if (failed.length) {
+      const detail = failed.map((r) => `${r.episode_id}: ${r.error || "failed"}`).join("\n");
+      showToast(detail, { type: "error", title: `${failed.length} episode(s) not deleted`, timeout: 12000 });
+    }
+    if (selectedId && ids.includes(selectedId)) {
+      selectedId = null;
+      detailEl.innerHTML = '<p class="empty-hint">Select an episode to see its details.</p>';
+    }
+  } catch (err) {
+    showToast(err.message, { type: "error", title: "Bulk delete failed" });
+  } finally {
+    bulkDeleteBtn.disabled = false;
+    selectedEpisodes.clear();
+    await refreshList();
+  }
+});
+
+bulkClearBtn.addEventListener("click", () => {
+  selectedEpisodes.clear();
+  refreshList();
+});
+
+// --- Episode detail panel ---
 
 function renderHeader(header) {
   const rows = [
@@ -135,9 +245,9 @@ function renderHeader(header) {
     ["hiveboard_version", header.hiveboard_version],
     ["low_level.mode", header.low_level && header.low_level.mode],
     ["manipulator.model", header.manipulator && header.manipulator.model],
-    ["cameras", (header.cameras || []).map(c => c.name).join(", ")],
+    ["cameras", (header.cameras || []).map((c) => c.name).join(", ")],
   ];
-  return `<dl class="header-fields">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v ?? ""}</dd>`).join("")}</dl>`;
+  return `<dl class="header-fields">${rows.map(([k, v]) => `<dt>${k}</dt><dd>${v ?? "–"}</dd>`).join("")}</dl>`;
 }
 
 async function selectEpisode(episodeId) {
@@ -150,53 +260,93 @@ async function selectEpisode(episodeId) {
   const attachmentId = ann.attachment_id || "";
   const info = attachments[attachmentId];
   const composed = info ? info.composed_assembly : null;
+  const stats = data.stats || {};
+  const statusClass = (data.index && data.index.status || "").split(" ")[0];
+
+  const OUTCOMES = ["success", "fail", "timeout", "safety_stop"];
+  const FAILURE_CAUSES = ["grasp_geometry", "kinematic_limit", "perception", "slip", "force_limit", "control_precision", "other"];
+  const STRATEGIES = ["prehensile", "non_prehensile"];
 
   detailEl.innerHTML = `
-    <h2>${episodeId} <span class="badge ${(data.index && data.index.status || "").split(" ")[0]}">${data.index ? data.index.status : ""}</span></h2>
-    ${renderHeader(data.header)}
-    <h3>Trajectory</h3>
-    <canvas id="traj" style="width:100%;height:260px"></canvas>
-    <h3>Cameras</h3>
-    ${data.cameras.map(c => `<div>${c}<br><video controls src="/api/episodes/${episodeId}/video/${c}"></video></div>`).join("") || "<p>No videos.</p>"}
-    <h3>Validate / Annotate</h3>
-    <form class="validate-form" id="annForm">
-      <label>attachment_id <input name="attachment_id" value="${attachmentId}" list="attachmentList"></label>
-      <datalist id="attachmentList">${Object.keys(attachments).map(a => `<option value="${a}">`).join("")}</datalist>
-      <label>outcome
-        <select name="outcome">
-          ${["success", "fail", "timeout", "safety_stop"].map(o => `<option ${o === outcome ? "selected" : ""}>${o}</option>`).join("")}
-        </select>
-      </label>
-      <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">failure_cause
-        <select name="failure_cause">
-          ${["grasp_geometry", "kinematic_limit", "perception", "slip", "force_limit", "control_precision", "other"].map(c => `<option ${c === ann.failure_cause ? "selected" : ""}>${c}</option>`).join("")}
-        </select>
-      </label>
-      <label id="completionTimeField" style="${outcome !== "success" ? "display:none" : ""}">completion_time_s
-        <input name="completion_time_s" type="number" step="0.01" value="${ann.completion_time_s || ""}">
-      </label>
-      <label>n_attempts <input name="n_attempts" type="number" value="${ann.n_attempts || 1}"></label>
-      <label>n_regrasps <input name="n_regrasps" type="number" value="${ann.n_regrasps || 0}"></label>
-      <label id="stageField" style="${composed ? "" : "display:none"}">stage_reached
-        <input name="stage_reached" type="number" value="${ann.stage_reached || ""}">
-      </label>
-      <label>strategy
-        <select name="strategy">
-          ${["prehensile", "non_prehensile"].map(s => `<option ${s === ann.strategy ? "selected" : ""}>${s}</option>`).join("")}
-        </select>
-      </label>
-      <label>notes <textarea name="notes">${ann.notes || ""}</textarea></label>
-      <button type="submit" class="primary">Save & validate</button>
-    </form>
+    <div class="detail-header">
+      <div>
+        <h2>${episodeId}</h2>
+        <div class="detail-sub">${data.header.session_id} · trial ${data.header.trial_id}</div>
+      </div>
+      <span class="badge badge-lg ${statusClass}">${data.index ? data.index.status : ""}</span>
+    </div>
+
+    <div class="stat-row">
+      <div class="stat"><span class="stat-value">${formatSteps(stats.n_steps)}</span><span class="stat-label">Steps</span></div>
+      <div class="stat"><span class="stat-value">${formatDuration(stats.duration_s)}</span><span class="stat-label">Duration</span></div>
+      <div class="stat"><span class="stat-value">${formatRate(stats.sample_rate_hz)}</span><span class="stat-label">Rate</span></div>
+      <div class="stat"><span class="stat-value">${data.cameras.length}</span><span class="stat-label">Cameras</span></div>
+    </div>
+
+    <div class="card">
+      <h3>Overview</h3>
+      ${renderHeader(data.header)}
+    </div>
+
+    <div class="card">
+      <h3>Cameras</h3>
+      <div class="camera-grid">
+        ${data.cameras.map((c) => `
+          <div class="camera-card">
+            <div class="cam-name">${c}</div>
+            <video controls src="/api/episodes/${episodeId}/video/${c}"></video>
+          </div>`).join("") || "<p class=\"empty-hint\">No videos recorded.</p>"}
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Validate / Annotate</h3>
+      <form class="validate-form" id="annForm">
+        <fieldset>
+          <legend>Trial outcome</legend>
+          <div class="field-grid">
+            <label>Attachment
+              <input name="attachment_id" value="${attachmentId}" list="attachmentList">
+            </label>
+            <datalist id="attachmentList">${Object.keys(attachments).map((a) => `<option value="${a}">`).join("")}</datalist>
+            <label>Outcome
+              <select name="outcome">
+                ${OUTCOMES.map((o) => `<option value="${o}" ${o === outcome ? "selected" : ""}>${humanize(o)}</option>`).join("")}
+              </select>
+            </label>
+            <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">Failure cause
+              <select name="failure_cause">
+                ${FAILURE_CAUSES.map((c) => `<option value="${c}" ${c === ann.failure_cause ? "selected" : ""}>${humanize(c)}</option>`).join("")}
+              </select>
+            </label>
+            <label id="completionTimeField" style="${outcome !== "success" ? "display:none" : ""}">Completion time (s)
+              <input name="completion_time_s" type="number" step="0.01" value="${ann.completion_time_s || ""}">
+            </label>
+            <label>Attempts <input name="n_attempts" type="number" value="${ann.n_attempts || 1}"></label>
+            <label>Regrasps <input name="n_regrasps" type="number" value="${ann.n_regrasps || 0}"></label>
+            <label id="stageField" style="${composed ? "" : "display:none"}">Stage reached
+              <input name="stage_reached" type="number" value="${ann.stage_reached || ""}">
+            </label>
+            <label>Strategy
+              <select name="strategy">
+                ${STRATEGIES.map((s) => `<option value="${s}" ${s === ann.strategy ? "selected" : ""}>${humanize(s)}</option>`).join("")}
+              </select>
+            </label>
+            <label class="full">Notes <textarea name="notes">${ann.notes || ""}</textarea></label>
+          </div>
+        </fieldset>
+        <div class="actions">
+          <button type="submit" class="primary">Save &amp; validate</button>
+        </div>
+      </form>
+    </div>
+
     <div class="actions">
       <button id="uploadBtn" class="primary">Upload</button>
       <button id="deleteBtn" class="danger">Delete</button>
     </div>
     <div class="status-msg" id="statusMsg"></div>
   `;
-
-  const traj = await api(`/api/episodes/${episodeId}/trajectory?max_points=2000`);
-  drawTrajectory(document.getElementById("traj"), traj);
 
   const form = document.getElementById("annForm");
   form.outcome.addEventListener("change", () => {
@@ -242,6 +392,7 @@ async function selectEpisode(episodeId) {
       await refreshList();
     } catch (err) {
       msg.textContent = `Error: ${err.message}`;
+      showToast(err.message, { type: "error", title: "Upload failed" });
     }
   };
 
@@ -254,6 +405,7 @@ async function selectEpisode(episodeId) {
       await refreshList();
     } catch (err) {
       document.getElementById("statusMsg").textContent = `Error: ${err.message}`;
+      showToast(err.message, { type: "error", title: "Delete failed" });
     }
   };
 }
@@ -281,7 +433,7 @@ function renderProfileForm(profile, problems, exists) {
   const cams = profile.cameras || [];
 
   const problemsHtml = problems.length
-    ? `<ul class="problem-list">${problems.map(p => `<li>${p}</li>`).join("")}</ul>`
+    ? `<ul class="problem-list">${problems.map((p) => `<li>${p}</li>`).join("")}</ul>`
     : `<p class="status-msg">Profile is complete.</p>`;
 
   profileBody.innerHTML = `
@@ -306,14 +458,14 @@ function renderProfileForm(profile, problems, exists) {
           <label>Type
             <select name="end_effector.type">
               <option value="">--</option>
-              ${["gripper", "dexterous_hand", "prosthetic_hand"].map(v => `<option ${ee.type === v ? "selected" : ""}>${v}</option>`).join("")}
+              ${["gripper", "dexterous_hand", "prosthetic_hand"].map((v) => `<option ${ee.type === v ? "selected" : ""}>${v}</option>`).join("")}
             </select>
           </label>
           <label>Actuated DoF <input name="end_effector.actuated_dof" type="number" value="${ee.actuated_dof ?? ""}"></label>
           <label>Command modality
             <select name="end_effector.command_modality">
               <option value="">--</option>
-              ${["binary", "position", "velocity"].map(v => `<option ${ee.command_modality === v ? "selected" : ""}>${v}</option>`).join("")}
+              ${["binary", "position", "velocity"].map((v) => `<option ${ee.command_modality === v ? "selected" : ""}>${v}</option>`).join("")}
             </select>
           </label>
         </div>
@@ -325,7 +477,7 @@ function renderProfileForm(profile, problems, exists) {
           <label>Mode
             <select name="low_level.mode" required>
               <option value="">--</option>
-              ${["stock", "custom"].map(v => `<option ${ll.mode === v ? "selected" : ""}>${v}</option>`).join("")}
+              ${["stock", "custom"].map((v) => `<option ${ll.mode === v ? "selected" : ""}>${v}</option>`).join("")}
             </select>
           </label>
           <label>Controller type <input name="low_level.controller_type" value="${ll.controller_type || ""}"></label>
@@ -348,7 +500,7 @@ function renderProfileForm(profile, problems, exists) {
           <label>Board mounting
             <select name="board_mounting">
               <option value="">--</option>
-              ${["horizontal", "vertical"].map(v => `<option ${profile.board_mounting === v ? "selected" : ""}>${v}</option>`).join("")}
+              ${["horizontal", "vertical"].map((v) => `<option ${profile.board_mounting === v ? "selected" : ""}>${v}</option>`).join("")}
             </select>
           </label>
           <label>HiveBoard version <input name="hiveboard_version" value="${profile.hiveboard_version || ""}"></label>
@@ -393,19 +545,19 @@ function renderProfileForm(profile, problems, exists) {
     for (const [key, value] of fd.entries()) {
       if (key.includes(".")) {
         const [group, field] = key.split(".");
-        payload[group][field] = value === "" ? null : (field === "dof" || field === "actuated_dof" || field === "rate_hz" ? Number(value) : (field === "joint_names" ? value.split(",").map(s => s.trim()).filter(Boolean) : value));
+        payload[group][field] = value === "" ? null : (field === "dof" || field === "actuated_dof" || field === "rate_hz" ? Number(value) : (field === "joint_names" ? value.split(",").map((s) => s.trim()).filter(Boolean) : value));
       } else {
         payload[key] = value === "" ? null : value;
       }
     }
-    payload.cameras = Array.from(document.querySelectorAll("#cameraList .camera-row")).map(row => {
+    payload.cameras = Array.from(document.querySelectorAll("#cameraList .camera-row")).map((row) => {
       const cam = {};
-      row.querySelectorAll("input").forEach(inp => {
+      row.querySelectorAll("input").forEach((inp) => {
         const f = inp.dataset.field;
         cam[f] = inp.value === "" ? null : (f === "fps" ? Number(inp.value) : inp.value);
       });
       return cam;
-    }).filter(c => c.name);
+    }).filter((c) => c.name);
     payload.units_and_frames = profile.units_and_frames || {};
 
     const msg = document.getElementById("profileMsg");

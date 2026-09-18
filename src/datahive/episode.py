@@ -92,6 +92,25 @@ def sample_rate_hz(h5_path: Path, group: str = "proprioception") -> float | None
     return float(1.0 / dt)
 
 
+def episode_stats(h5_path: Path, group: str = "proprioception") -> dict[str, float | int | None]:
+    """Cheap summary stats for the GUI's detail view: number of recorded
+    steps, wall-clock duration, and sample rate."""
+    n_steps = 0
+    duration_s: float | None = None
+    with h5py.File(h5_path, "r") as f:
+        grp = f.get(group)
+        if grp is not None and "timestamp" in grp:
+            ts = np.asarray(grp["timestamp"][:]).reshape(-1)
+            n_steps = int(ts.shape[0])
+            if n_steps >= 2:
+                duration_s = float(ts[-1] - ts[0])
+    return {
+        "n_steps": n_steps,
+        "duration_s": duration_s,
+        "sample_rate_hz": sample_rate_hz(h5_path, group=group),
+    }
+
+
 def read_trajectory(
     h5_path: Path,
     *,

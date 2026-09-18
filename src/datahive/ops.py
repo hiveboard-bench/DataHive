@@ -11,7 +11,7 @@ from pathlib import Path
 
 from datahive.config import Config, load_config
 from datahive.episode import read_header
-from datahive.errors import EpisodeNotFound, HubError
+from datahive.errors import DatahiveError, EpisodeNotFound, HubError
 from datahive.hub import Hub, remote_paths, remote_setup_jpg_path, remote_trials_csv_path
 from datahive.index import EpisodeRecord, Index
 from datahive.paths import resolve_episode_paths
@@ -102,6 +102,43 @@ def upload_episode(
         return UploadResult(episode_id, uploaded=True, remote_paths=list(files.keys()))
 
 
+def bulk_upload_episodes(
+    samples_root: Path, episode_ids: list[str], *, hub: Hub | None = None, force: bool = False
+) -> list[UploadResult]:
+    """Uploads several episodes, reusing one Hub client across all of them.
+    A bad episode_id -- or a missing/invalid Hub config -- doesn't abort the
+    batch: every id comes back as a failed UploadResult with the error
+    message, same shape as a successful one."""
+    try:
+        hub_client = _get_hub(hub)
+    except DatahiveError as e:
+        return [UploadResult(episode_id, uploaded=False, error=str(e)) for episode_id in episode_ids]
+
+    results: list[UploadResult] = []
+    for episode_id in episode_ids:
+        try:
+            results.append(upload_episode(samples_root, episode_id, hub=hub_client, force=force))
+        except DatahiveError as e:
+            results.append(UploadResult(episode_id, uploaded=False, error=str(e)))
+    return results
+
+
+def bulk_delete_episodes(
+    samples_root: Path, episode_ids: list[str], *, hub: Hub | None = None, delete_remote: bool = True
+) -> list[DeleteResult]:
+    """Deletes several episodes. Each call resolves its own Hub client
+    lazily (only if that particular episode was actually uploaded), same as
+    a single delete_episode -- so deleting a batch of never-uploaded
+    episodes never requires a Hub config at all."""
+    results: list[DeleteResult] = []
+    for episode_id in episode_ids:
+        try:
+            results.append(delete_episode(samples_root, episode_id, hub=hub, delete_remote=delete_remote))
+        except DatahiveError as e:
+            results.append(DeleteResult(episode_id, deleted_local=False, deleted_remote=False, error=str(e)))
+    return results
+
+
 @dataclass
 class SyncReport:
     newly_recorded: list[str] = field(default_factory=list)
@@ -159,6 +196,7 @@ class DeleteResult:
     episode_id: str
     deleted_local: bool
     deleted_remote: bool
+    error: str | None = None
 
 
 def delete_episode(
@@ -208,6 +246,9 @@ class EpisodeStatus:
     status: str
     last_error: str | None
     last_synced_at: str | None
+    created_at: str | None = None
+    n_steps: int | None = None
+    duration_s: float | None = None
     remote: bool | None = None
 
 
@@ -240,6 +281,9 @@ def list_episodes(
                 status=r.effective_status,
                 last_error=r.last_error,
                 last_synced_at=r.last_synced_at,
+                created_at=r.created_at,
+                n_steps=r.n_steps,
+                duration_s=r.duration_s,
                 remote=(r.episode_id in remote_ids) if remote_ids is not None else None,
             )
         )

@@ -399,14 +399,15 @@ profileOverlay.addEventListener("click", (e) => {
 
 searchEl.addEventListener("input", refreshList);
 statusEl.addEventListener("change", refreshList);
+const syncBtnLabel = syncBtn.querySelector("span");
 syncBtn.addEventListener("click", async () => {
   syncBtn.disabled = true;
-  syncBtn.textContent = "Syncing…";
+  syncBtnLabel.textContent = "Syncing…";
   try {
     await api("/api/sync", { method: "POST" });
   } finally {
     syncBtn.disabled = false;
-    syncBtn.textContent = "Sync";
+    syncBtnLabel.textContent = "Sync";
     await refreshList();
   }
 });

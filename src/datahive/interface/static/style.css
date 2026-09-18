@@ -412,7 +412,7 @@ fieldset legend {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
-.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem 0.7rem; }
+.field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1.75rem 0.7rem; }
 .field-grid label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.95rem; font-weight: 600; color: var(--muted); }
 .field-grid label input, .field-grid label select, .field-grid label textarea { color: var(--fg); font-weight: 400; }
 .field-grid label.full { grid-column: 1 / -1; }
@@ -442,7 +442,8 @@ fieldset legend {
 /* #restFields wraps a sub-set of field-grid's children (progressive
    disclosure in the annotate form) -- give it the same grid/gap so those
    labels aren't just plain stacked block elements with no spacing. */
-#restFields { display: grid; grid-template-columns: 1fr; gap: 1.5rem 0.7rem; }
+#restFields { display: grid; grid-template-columns: 1fr; gap: 1.75rem 0.7rem; }
+.field-divider { width: 100%; border: none; border-top: 1px solid var(--border); margin: 0; }
 
 
 .profile-intro { color: var(--muted); font-size: 0.88rem; margin: 0 0 1rem; max-width: 60ch; }

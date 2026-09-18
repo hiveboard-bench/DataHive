@@ -609,6 +609,7 @@ async function selectEpisode(episodeId) {
               <label class="full">Strategy
                 ${segmentedControlHtml("strategy", STRATEGIES, ann.strategy)}
               </label>
+              <hr class="field-divider">
               <label class="full">Note (optional)
                 <textarea name="notes" placeholder="Anything else worth recording about this trial…">${ann.notes || ""}</textarea>
               </label>

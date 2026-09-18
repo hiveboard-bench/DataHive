@@ -192,6 +192,7 @@ main {
   user-select: none;
 }
 .list-group-header:hover { color: var(--fg); }
+.list-group-header .day-select-all { cursor: pointer; margin: 0; flex-shrink: 0; }
 .list-group-header .chevron { width: 0.85rem; height: 0.85rem; flex-shrink: 0; transition: transform 0.15s; }
 .list-group-header.collapsed .chevron { transform: rotate(-90deg); }
 .list-group-header .day-count {
@@ -562,6 +563,7 @@ fieldset legend {
   margin-left: 0.5rem;
   vertical-align: middle;
 }
+.field-label-text { display: inline-block; }
 .required-mark { color: var(--danger); margin-left: 0.15rem; font-weight: 700; cursor: help; }
 
 .camera-list { display: grid; gap: 0.8rem; margin-bottom: 0.9rem; }

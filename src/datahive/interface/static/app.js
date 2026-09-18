@@ -88,12 +88,16 @@ function humanize(value) {
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-// Red asterisk marking a mandatory field's label. For fields that are
-// only conditionally required (Failure cause, Reason, Stage reached),
-// this is only ever rendered while that field is also visible -- i.e.
-// exactly when it's actually required.
-function requiredMark() {
-  return `<span class="required-mark" title="Required">*</span>`;
+// A field label with a red required-asterisk immediately after the text.
+// Labels are flex columns (text above the input), so the text and the
+// asterisk must be wrapped in one inline element -- otherwise the
+// asterisk becomes its own flex child and drops onto its own line
+// instead of sitting to the right of the word. For fields that are only
+// conditionally required (Failure cause, Reason, Stage reached), this is
+// only ever rendered while that field is also visible -- i.e. exactly
+// when it's actually required.
+function fieldLabel(text) {
+  return `<span class="field-label-text">${text}<span class="required-mark" title="Required">*</span></span>`;
 }
 
 // A button-group ("segmented control") in place of a native <select>, for
@@ -369,6 +373,7 @@ function toggleSelection(episodeId, checked) {
 // refreshList() calls (in-memory, for this page load) so filtering/search
 // doesn't fight the user's collapse state.
 const collapsedDays = new Set();
+let dayGroupsStartCollapsed = true; // all groups start minimized on first render only
 
 function buildEpisodeRow(ep) {
   const row = document.createElement("div");
@@ -420,6 +425,11 @@ async function refreshList() {
     group.episodes.push(ep);
   }
 
+  if (dayGroupsStartCollapsed) {
+    groups.forEach((g) => collapsedDays.add(g.key));
+    dayGroupsStartCollapsed = false; // only seed on the very first render
+  }
+
   listEl.innerHTML = "";
   for (const group of groups) {
     const isCollapsed = collapsedDays.has(group.key);
@@ -427,13 +437,29 @@ async function refreshList() {
     const groupEl = document.createElement("div");
     groupEl.className = "day-group";
 
+    const groupIds = group.episodes.map((e) => e.episode_id);
+    const selectedInGroup = groupIds.filter((id) => selectedEpisodes.has(id)).length;
+
     const header = document.createElement("div");
     header.className = "list-group-header" + (isCollapsed ? " collapsed" : "");
     header.innerHTML = `
+      <input type="checkbox" class="day-select-all" aria-label="Select all episodes from ${escapeHtml(group.label)}">
       <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
       <span class="day-label">${group.label}</span>
       <span class="day-count">${group.episodes.length}</span>
     `;
+    const dayCheckbox = header.querySelector(".day-select-all");
+    dayCheckbox.checked = selectedInGroup > 0 && selectedInGroup === groupIds.length;
+    dayCheckbox.indeterminate = selectedInGroup > 0 && selectedInGroup < groupIds.length;
+    dayCheckbox.addEventListener("click", async (e) => {
+      e.stopPropagation();
+      const selectAll = dayCheckbox.checked;
+      groupIds.forEach((id) => {
+        if (selectAll) selectedEpisodes.add(id);
+        else selectedEpisodes.delete(id);
+      });
+      await refreshList();
+    });
 
     const rowsEl = document.createElement("div");
     rowsEl.className = "day-rows" + (isCollapsed ? " collapsed" : "");
@@ -749,21 +775,21 @@ async function selectEpisode(episodeId) {
           <div class="field-grid">
             <label>Operator name <input name="operator_name" value="${ann.operator_name || ""}" placeholder="Who ran this trial"></label>
             <label>Annotator name <input name="annotator_name" value="${ann.annotator_name || ""}" placeholder="Who is annotating"></label>
-            <label class="full">Task${requiredMark()}
+            <label class="full">${fieldLabel("Task")}
               <input type="hidden" name="attachment_id" value="${attachmentId}">
               <button type="button" id="taskPickerBtn" class="task-chip">${taskChipHtml(info, attachmentId)}</button>
             </label>
-            <label class="full">Outcome${requiredMark()}
+            <label class="full">${fieldLabel("Outcome")}
               ${segmentedControlHtml("outcome", OUTCOMES, outcome, OUTCOME_MEANINGS)}
             </label>
             <hr id="outcomeDivider" class="field-divider" style="${!outcome || outcome === "success" ? "display:none" : ""}">
             <div id="restFields" style="${outcome ? "" : "display:none"}">
-              <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">Failure cause${requiredMark()}
+              <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">${fieldLabel("Failure cause")}
                 <select name="failure_cause">
                   ${FAILURE_CAUSES.map((c) => `<option value="${c}" ${c === ann.failure_cause ? "selected" : ""}>${humanize(c)}</option>`).join("")}
                 </select>
               </label>
-              <label id="failureCauseDetailField" class="full" style="${(outcome === "success" || ann.failure_cause !== "other") ? "display:none" : ""}">Reason${requiredMark()}
+              <label id="failureCauseDetailField" class="full" style="${(outcome === "success" || ann.failure_cause !== "other") ? "display:none" : ""}">${fieldLabel("Reason")}
                 <input name="failure_cause_detail" value="${ann.failure_cause_detail || ""}" placeholder="What happened?">
               </label>
               <label id="severityField" class="full" style="${outcome === "success" ? "display:none" : ""}">Severity
@@ -775,10 +801,10 @@ async function selectEpisode(episodeId) {
               </label>
               <label>Attempts <input name="n_attempts" type="number" value="${ann.n_attempts || 1}"></label>
               <label>Regrasps <input name="n_regrasps" type="number" value="${ann.n_regrasps || 0}"></label>
-              <label id="stageField" class="full" style="${composed ? "" : "display:none"}">Stage reached${requiredMark()}
+              <label id="stageField" class="full" style="${composed ? "" : "display:none"}">${fieldLabel("Stage reached")}
                 <div id="stageFieldBody">${stageFieldHtml(info, ann.stage_reached)}</div>
               </label>
-              <label class="full">Strategy${requiredMark()}
+              <label class="full">${fieldLabel("Strategy")}
                 ${segmentedControlHtml("strategy", STRATEGIES, ann.strategy)}
               </label>
             </div>

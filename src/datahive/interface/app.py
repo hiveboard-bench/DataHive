@@ -15,7 +15,7 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 
 def create_app(samples_root: Path) -> FastAPI:
-    app = FastAPI(title="datahive-tools", docs_url="/api/docs")
+    app = FastAPI(title="DataHive", docs_url="/api/docs")
     app.include_router(build_router(samples_root))
     if STATIC_DIR.is_dir():
         app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

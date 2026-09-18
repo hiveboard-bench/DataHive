@@ -33,7 +33,11 @@ header {
   border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
-header h1 { font-size: 1.1rem; margin: 0; }
+header h1 { display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; margin: 0; }
+header h1 .logo { height: 1.4em; width: auto; display: block; }
+@media (prefers-color-scheme: dark) {
+  header h1 .logo { filter: invert(1) brightness(1.8); }
+}
 .toolbar { display: flex; gap: 0.5rem; flex: 1; flex-wrap: wrap; }
 input, select, button {
   font: inherit;

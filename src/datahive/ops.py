@@ -331,19 +331,24 @@ def get_sync_status(samples_root: Path, *, hub: Hub | None = None) -> SyncStatus
         )
 
 
-def get_last_annotation(samples_root: Path, *, exclude_episode_id: str | None = None) -> dict | None:
-    """The most recently saved trial annotation anywhere under samples/,
-    for the GUI's "Copy from previous" button -- lets an annotator fill in
-    a fresh episode from the last one instead of retyping everything.
-    Skips episodes with no saved annotation row and (by default) the
-    episode being annotated right now."""
+def list_recent_annotations(
+    samples_root: Path, *, exclude_episode_id: str | None = None, limit: int = 20
+) -> list[dict]:
+    """The most recently saved trial annotations anywhere under samples/,
+    newest first, for the GUI's "Copy from previous" picker -- lets an
+    annotator pick one to fill a fresh episode from instead of retyping
+    everything. Skips episodes with no saved annotation row and (by
+    default) the episode being annotated right now."""
     with Index(samples_root) as idx:
         idx.scan()
         records = idx.all()
+    results: list[dict] = []
     for rec in sorted(records, key=lambda r: r.updated_at, reverse=True):
         if rec.episode_id == exclude_episode_id or not rec.trial_id:
             continue
         row = get_row(trials_csv_path(samples_root, rec.session_id), rec.trial_id)
         if row:
-            return row
-    return None
+            results.append({"episode_id": rec.episode_id, "session_id": rec.session_id, "annotation": row})
+        if len(results) >= limit:
+            break
+    return results

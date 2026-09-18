@@ -332,31 +332,39 @@ def test_status_when_not_configured(samples_root):
     assert body["connected"] is False
 
 
-def test_last_annotation_copies_from_the_most_recent_other_episode(samples_root):
+def test_previous_annotations_lists_newest_first_excluding_self(samples_root):
     profile = _fill_profile(samples_root)
     make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile)
     make_episode(samples_root, "sess1", "ep2", trial_id="t2", profile=profile)
+    make_episode(samples_root, "sess1", "ep3", trial_id="t3", profile=profile)
     client = _client(samples_root)
 
     # No annotations yet anywhere.
-    resp = client.get("/api/episodes/ep2/last-annotation")
-    assert resp.status_code == 404
+    resp = client.get("/api/episodes/ep3/previous-annotations")
+    assert resp.status_code == 200
+    assert resp.json()["results"] == []
 
     client.post(
         "/api/episodes/ep1/annotate",
         json={"attachment_id": "valve_ball", "operator_name": "Alex", "outcome": "success", "strategy": "prehensile"},
     )
+    resp = client.post(
+        "/api/episodes/ep2/annotate",
+        json={"attachment_id": "thread_m8", "operator_name": "Sam", "outcome": "fail", "failure_cause": "slip", "strategy": "prehensile"},
+    )
+    assert resp.status_code == 200, resp.text
 
-    # ep2 copies ep1's annotation...
-    resp = client.get("/api/episodes/ep2/last-annotation")
+    # ep3 sees both, newest (ep2) first.
+    resp = client.get("/api/episodes/ep3/previous-annotations")
     assert resp.status_code == 200
-    row = resp.json()
-    assert row["operator_name"] == "Alex"
-    assert row["outcome"] == "success"
+    results = resp.json()["results"]
+    assert [r["episode_id"] for r in results] == ["ep2", "ep1"]
+    assert results[0]["annotation"]["operator_name"] == "Sam"
+    assert results[1]["annotation"]["operator_name"] == "Alex"
 
-    # ...but ep1 itself is excluded from its own "previous annotation" search.
-    resp = client.get("/api/episodes/ep1/last-annotation")
-    assert resp.status_code == 404
+    # ep1 itself is excluded from its own "previous annotations" list.
+    resp = client.get("/api/episodes/ep1/previous-annotations")
+    assert [r["episode_id"] for r in resp.json()["results"]] == ["ep2"]
 
 
 def test_status_when_connected(samples_root, fake_hub, monkeypatch):

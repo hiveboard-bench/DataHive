@@ -12,6 +12,9 @@ const profileBody = document.getElementById("profileBody");
 const profileCloseBtn = document.getElementById("profileCloseBtn");
 const taskOverlay = document.getElementById("taskOverlay");
 const taskCloseBtn = document.getElementById("taskCloseBtn");
+const copyPrevOverlay = document.getElementById("copyPrevOverlay");
+const copyPrevCloseBtn = document.getElementById("copyPrevCloseBtn");
+const copyPrevList = document.getElementById("copyPrevList");
 const toastContainer = document.getElementById("toastContainer");
 const hubStatusEl = document.getElementById("hubStatus");
 const bulkBar = document.getElementById("bulkBar");
@@ -812,12 +815,43 @@ async function selectEpisode(episodeId) {
   }
 
   document.getElementById("copyPrevBtn").addEventListener("click", async () => {
+    copyPrevOverlay.classList.remove("hidden");
+    copyPrevList.innerHTML = `<p class="empty-hint">Loading…</p>`;
     try {
-      const row = await api(`/api/episodes/${episodeId}/last-annotation`);
-      applyAnnotationRow(row);
-      showToast("Copied from a previous annotation.", { type: "success", timeout: 3000 });
+      const { results } = await api(`/api/episodes/${episodeId}/previous-annotations`);
+      if (!results.length) {
+        copyPrevList.innerHTML = `<p class="empty-hint">No previous annotations yet.</p>`;
+        return;
+      }
+      copyPrevList.innerHTML = results.map((r) => {
+        const a = r.annotation;
+        const task = attachments[a.attachment_id];
+        const outcomeClass = a.outcome === "success" ? "uploaded" : "upload_failed";
+        return `
+          <button type="button" class="copy-prev-row" data-episode-id="${r.episode_id}">
+            <div class="copy-prev-main">
+              <strong>${escapeHtml(r.episode_id)}</strong>
+              <span>${escapeHtml(task ? task.name : (a.attachment_id || "–"))}</span>
+            </div>
+            <div class="copy-prev-meta">
+              <span class="badge ${outcomeClass}">${humanize(a.outcome)}</span>
+              <span>${escapeHtml(a.operator_name || "–")}</span>
+              <span>${escapeHtml(a.date || "")}</span>
+            </div>
+          </button>`;
+      }).join("");
+      copyPrevList.querySelectorAll(".copy-prev-row").forEach((row) => {
+        row.addEventListener("click", () => {
+          const match = results.find((r) => r.episode_id === row.dataset.episodeId);
+          if (match) {
+            applyAnnotationRow(match.annotation);
+            showToast(`Copied from ${match.episode_id}.`, { type: "success", timeout: 3000 });
+          }
+          copyPrevOverlay.classList.add("hidden");
+        });
+      });
     } catch (err) {
-      showToast(err.message, { type: "error", title: "Nothing to copy" });
+      copyPrevList.innerHTML = `<p class="empty-hint">Error: ${escapeHtml(err.message)}</p>`;
     }
   });
 
@@ -1121,6 +1155,11 @@ profileOverlay.addEventListener("click", (e) => {
 taskCloseBtn.addEventListener("click", () => taskOverlay.classList.add("hidden"));
 taskOverlay.addEventListener("click", (e) => {
   if (e.target === taskOverlay) taskOverlay.classList.add("hidden");
+});
+
+copyPrevCloseBtn.addEventListener("click", () => copyPrevOverlay.classList.add("hidden"));
+copyPrevOverlay.addEventListener("click", (e) => {
+  if (e.target === copyPrevOverlay) copyPrevOverlay.classList.add("hidden");
 });
 
 searchEl.addEventListener("input", refreshList);

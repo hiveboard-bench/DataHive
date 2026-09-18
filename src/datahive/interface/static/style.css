@@ -76,10 +76,10 @@ button.danger { background: transparent; border-color: var(--danger); color: var
 button.danger:hover { background: var(--danger); color: #fff; }
 main {
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 460px 1fr;
   min-height: calc(100vh - 56px);
 }
-@media (max-width: 720px) {
+@media (max-width: 960px) {
   main { grid-template-columns: 1fr; }
 }
 .episode-list-panel {
@@ -90,15 +90,16 @@ main {
 }
 .list-filters { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); }
 .list-filters select { width: 100%; }
-.episode-list { overflow-y: auto; flex: 1; }
+.episode-list { overflow-y: auto; flex: 1; min-height: 0; }
 .bulk-bar {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border-bottom: 1px solid var(--border);
+  padding: 0.6rem 1rem;
+  border-top: 1px solid var(--border);
   background: rgba(37,99,235,0.06);
   font-size: 0.85rem;
+  flex-shrink: 0;
 }
 .bulk-bar.hidden { display: none; }
 .bulk-bar #bulkCount { font-weight: 600; margin-right: auto; }

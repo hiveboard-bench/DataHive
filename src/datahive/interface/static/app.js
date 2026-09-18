@@ -610,6 +610,15 @@ function datasetInfoHtml(fields) {
   }).join("")}</dl>`;
 }
 
+// Short "N state key(s) · M action key(s)" summary, shown to the right of
+// the Overview heading (not inside the collapsible body, so it's visible
+// even while collapsed).
+function overviewSummaryText(data) {
+  const proprio = (data.dataset_info && data.dataset_info.proprioception) || {};
+  const commands = (data.dataset_info && data.dataset_info.commands) || {};
+  return `${Object.keys(proprio).length} state key(s) · ${Object.keys(commands).length} action key(s)`;
+}
+
 function renderOverview(data) {
   const header = data.header;
   const stats = data.stats || {};
@@ -647,8 +656,6 @@ function renderOverview(data) {
   ];
 
   return `
-    <p class="overview-summary">Episode data — ${Object.keys(proprio).length} state key(s) · ${Object.keys(commands).length} action key(s)</p>
-
     <h4 class="overview-section">Attributes</h4>
     ${kvListHtml(attributes)}
 
@@ -735,7 +742,8 @@ async function selectEpisode(episodeId) {
     <div class="card">
       <h3 class="collapsible-header" id="overviewToggle">
         <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
-        Overview
+        <span>Overview</span>
+        <span class="overview-summary">${overviewSummaryText(data)}</span>
       </h3>
       <div class="collapsible-body" id="overviewBody" hidden>
         ${renderOverview(data)}

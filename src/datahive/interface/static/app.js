@@ -434,7 +434,7 @@ async function selectEpisode(episodeId) {
               </select>
             </label>
             <label id="completionTimeField" style="${outcome !== "success" ? "display:none" : ""}">Completion time
-              <input value="${formatDuration(stats.duration_s)} (from the episode's recorded duration)" disabled>
+              <input value="${formatDuration(stats.duration_s)}" disabled>
             </label>
             <label>Attempts <input name="n_attempts" type="number" value="${ann.n_attempts || 1}"></label>
             <label>Regrasps <input name="n_regrasps" type="number" value="${ann.n_regrasps || 0}"></label>

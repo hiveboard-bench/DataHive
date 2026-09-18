@@ -301,7 +301,7 @@ fieldset legend {
   letter-spacing: 0.04em;
 }
 .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.4rem 0.7rem; }
-.field-grid label { display: flex; flex-direction: column; gap: 0.15rem; font-size: 0.8rem; color: var(--muted); }
+.field-grid label { display: flex; flex-direction: column; gap: 0.3rem; font-size: 0.95rem; font-weight: 600; color: var(--muted); }
 .field-grid label input, .field-grid label select, .field-grid label textarea { color: var(--fg); }
 .field-grid label.full { grid-column: 1 / -1; }
 .field-grid input, .field-grid select { padding: 0.32rem 0.5rem; }

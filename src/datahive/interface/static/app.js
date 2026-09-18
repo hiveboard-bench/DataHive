@@ -748,7 +748,7 @@ async function selectEpisode(episodeId) {
             <label class="full">Outcome
               ${segmentedControlHtml("outcome", OUTCOMES, outcome, OUTCOME_MEANINGS)}
             </label>
-            <hr class="field-divider">
+            <hr id="outcomeDivider" class="field-divider" style="${!outcome || outcome === "success" ? "display:none" : ""}">
             <div id="restFields" style="${outcome ? "" : "display:none"}">
               <label id="failureCauseField" style="${outcome === "success" ? "display:none" : ""}">Failure cause
                 <select name="failure_cause">
@@ -840,6 +840,7 @@ async function selectEpisode(episodeId) {
     document.getElementById("restFields").style.display = ""; // reveal once any outcome is picked
     const isSuccess = form.outcome.value === "success";
     document.getElementById("failureCauseField").style.display = isSuccess ? "none" : "";
+    document.getElementById("outcomeDivider").style.display = isSuccess ? "none" : "";
     document.getElementById("severityField").style.display = isSuccess ? "none" : "";
     document.getElementById("completionTimeField").style.display = isSuccess ? "" : "none";
     updateFailureCauseDetailVisibility();

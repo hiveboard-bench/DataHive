@@ -16,22 +16,43 @@
     } catch (e) { /* localStorage unavailable -- fall back to OS preference via CSS */ }
   })();
 </script>
-<link rel="stylesheet" href="/style.css">
+<link rel="stylesheet" href="/style.css?v=65">
 </head>
 <body>
   <header>
-    <h1><img src="/hiveboard-logo.svg" alt="HiveBoard logo" class="logo">DataHive</h1>
+    <h1 id="homeLink" class="home-link" title="Back to the start screen"><img src="/hiveboard-logo.svg" alt="HiveBoard logo" class="logo">DataHive</h1>
+    <nav class="mode-tabs" aria-label="Sections">
+      <button type="button" class="mode-tab" data-view="runner" title="Run HiveBoard trials: time them by hand and upload your recording, or let your robot record automatically">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><polyline points="12 9 12 13 15 15"></polyline><line x1="9" y1="2" x2="15" y2="2"></line></svg>
+        <span>Runner</span><span class="mode-tab-dot" hidden></span>
+      </button>
+      <button type="button" class="mode-tab" data-view="annotate" title="Review, annotate, validate and upload recorded episodes">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+        <span>Annotate</span>
+      </button>
+    </nav>
     <div id="hubStatus" class="hub-status" title="">
       <span class="hub-status-dot"></span>
       <span class="hub-status-text">Checking…</span>
     </div>
+    <div class="episode-nav" aria-label="Episode navigation">
+      <button id="prevBtn" class="btn-nav" type="button" title="Previous episode (←)" aria-label="Previous episode" disabled>◀ Prev</button>
+      <div id="sessionH5Name" class="episode-name placeholder" aria-live="polite">No episode selected</div>
+      <span id="episodePosition" class="episode-position" aria-hidden="true"></span>
+      <button id="nextBtn" class="btn-nav" type="button" title="Next episode (→)" aria-label="Next episode" disabled>Next ▶</button>
+      <button id="nextUnannotatedBtn" class="btn-nav unannotated-btn" type="button" title="Jump to next episode that isn't fully annotated" aria-label="Next unannotated episode">Next unannotated ▶▶</button>
+    </div>
     <div class="toolbar">
       <div class="toolbar-group toolbar-actions">
-        <button id="profileBtn" class="btn-icon">
+        <button id="profileBtn" class="btn-icon" type="button" onclick="openProfileOverlay()">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2" ry="2"></rect><rect x="9" y="9" width="6" height="6"></rect><line x1="9" y1="1" x2="9" y2="4"></line><line x1="15" y1="1" x2="15" y2="4"></line><line x1="9" y1="20" x2="9" y2="23"></line><line x1="15" y1="20" x2="15" y2="23"></line><line x1="20" y1="9" x2="23" y2="9"></line><line x1="20" y1="14" x2="23" y2="14"></line><line x1="1" y1="9" x2="4" y2="9"></line><line x1="1" y1="14" x2="4" y2="14"></line></svg>
           <span>Robot Profile</span>
         </button>
-        <button id="syncBtn" class="btn-icon">
+        <button id="statsBtn" class="btn-icon" type="button" onclick="openStatsOverlay()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+          <span>Statistics</span>
+        </button>
+        <button id="syncBtn" class="btn-icon" type="button">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"></polyline><polyline points="1 20 1 14 7 14"></polyline><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path></svg>
           <span>Sync</span>
         </button>
@@ -43,20 +64,32 @@
     </div>
   </header>
 
-  <main>
+  <main id="view-annotate">
     <section class="episode-list-panel">
       <div class="list-filters">
+        <button type="button" id="uploadEpisodeBtn" class="upload-episode-btn" title="Upload an episode recorded outside DataHive: the HDF5 and/or its videos">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+          <span>Upload episode</span>
+        </button>
         <div class="search-wrap">
           <svg class="search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
           <input id="search" type="search" placeholder="Search episode / session / trial…">
         </div>
-        <select id="statusFilter">
-          <option value="">All statuses</option>
-          <option value="recorded">Recorded</option>
-          <option value="validated">Validated</option>
-          <option value="uploaded">Uploaded</option>
-          <option value="upload_failed">Upload failed</option>
-        </select>
+        <div class="filter-row">
+          <select id="statusFilter">
+            <option value="">All statuses</option>
+            <option value="recorded">Recorded</option>
+            <option value="validated">Validated</option>
+            <option value="uploaded">Uploaded</option>
+            <option value="upload_failed">Upload failed</option>
+          </select>
+        </div>
+        <div class="filter-options-row">
+          <label class="toggle-control" title="Hide episodes that have already been validated or uploaded">
+            <input type="checkbox" id="hideAnnotatedChk">
+            <span>Hide annotated</span>
+          </label>
+        </div>
         <div id="listStats" class="list-stats"></div>
       </div>
       <div id="list" class="episode-list"></div>
@@ -82,28 +115,228 @@
     </section>
   </main>
 
+  <main id="view-home" class="view home-view" hidden>
+    <div class="home-inner">
+      <section class="home-hero">
+        <img src="/hiveboard-logo.svg" alt="" class="home-logo">
+        <h2>What would you like to do?</h2>
+        <p class="home-lead">DataHive helps labs collect data for HiveBoard. Choose a section to get started; you can switch at any time from the tabs above.</p>
+        <div class="home-cards">
+          <button type="button" class="home-card" data-view="runner">
+            <span class="home-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="13" r="8"></circle><polyline points="12 9 12 13 15 15"></polyline><line x1="9" y1="2" x2="15" y2="2"></line></svg></span>
+            <h3>Runner</h3>
+            <p>Run HiveBoard trials. Time each one by hand and upload your recording, or let your robot record automatically through the collection pipeline.</p>
+          </button>
+          <button type="button" class="home-card" data-view="annotate">
+            <span class="home-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg></span>
+            <h3>Annotate</h3>
+            <p>Review recorded episodes, annotate them, validate the data, and upload it to the Hub.</p>
+          </button>
+        </div>
+        <button type="button" class="home-next" id="homeNext" hidden></button>
+        <a class="home-more" href="#guide" id="homeMore">How it works &#8595;</a>
+      </section>
+
+      <section class="guide" id="guide">
+        <h2>How it works</h2>
+        <p class="guide-lead">Six simple steps from your robot to HiveBoard. DataHive keeps track of where you are.</p>
+        <ol class="guide-steps" id="guideSteps"><li class="guide-loading">Loading&hellip;</li></ol>
+      </section>
+
+      <section class="home-about" id="about">
+        <div class="about-cols">
+          <div>
+            <h3>Purpose</h3>
+            <p>DataHive helps labs collect data for HiveBoard: run the trials, record and annotate each episode, check it against HiveBoard's rules, and upload it to your lab's dataset. Data stays in <code>samples/</code> until you upload.</p>
+          </div>
+          <div>
+            <h3>We collect</h3>
+            <ul>
+              <li>Robot state at 100 Hz or faster</li>
+              <li>Commands sent to the robot</li>
+              <li>RGB video from each profile camera</li>
+              <li>Trial outcome and annotation</li>
+              <li>Robot profile and board setup</li>
+            </ul>
+          </div>
+          <div>
+            <h3>Not collected yet</h3>
+            <ul>
+              <li>Depth images and point clouds</li>
+              <li>Odometry for actuated bases</li>
+              <li>Force, tactile, IMU or audio streams</li>
+              <li>Camera calibration</li>
+            </ul>
+          </div>
+        </div>
+
+        <h3 class="faq-title">Questions</h3>
+        <div class="faq">
+          <details><summary>Runner or Annotate?</summary>
+            <p>Runner plans, times and records the trials. Annotate is where you review, annotate, validate and upload episodes.</p></details>
+          <details><summary>Manual or automatic mode?</summary>
+            <p>Manual: you time the trial here and upload the HDF5 and one video per camera. Automatic: your robot script records the episode and you annotate it right after. Switch any time from the trial screen.</p></details>
+          <details><summary>Can I manually add episodes from my own pipeline?</summary>
+            <p>Yes. If you built your own collection pipeline instead of using the Runner's manual or automatic mode, you can copy your recorded episode files directly into the <code>samples/</code> directory (under <code>samples/{session_id}/episodes/</code>). DataHive will automatically detect them so you can review, annotate, validate, and upload them in Annotate.</p></details>
+          <details><summary>What must I upload in manual mode?</summary>
+            <p>The HDF5 file and one video for every camera in your robot profile. The trial counts as valid only when all are uploaded and the episode passes validation.</p></details>
+          <details><summary>Do I need a robot profile?</summary>
+            <p>Yes. Fill in the required fields under Robot Profile first. Editing it later only affects new episodes.</p></details>
+          <details><summary>What makes an episode valid?</summary>
+            <p>A complete profile, 100 Hz or faster, 1 to 600 seconds, matching videos on every camera, and an annotation that agrees with the recording.</p></details>
+          <details><summary>How many trials are needed?</summary>
+            <p>Five on each of the 13 tasks, 65 in total. The Runner plans exactly that by default.</p></details>
+          <details><summary>Where is my data?</summary>
+            <p>On your machine, until you press Upload or Sync. Uploads go to the Hugging Face dataset set in your configuration.</p></details>
+        </div>
+      </section>
+    </div>
+  </main>
+  <main id="view-runner" class="view" hidden></main>
+
   <div id="toastContainer" class="toast-container" role="status" aria-live="polite"></div>
 
   <div id="profileOverlay" class="overlay hidden">
     <div class="overlay-panel">
       <div class="overlay-header">
-        <h2>Robot Profile</h2>
+        <div class="overlay-header-left">
+          <h2>Robot Profile</h2>
+          <a href="https://hiveboard-bench.github.io/hivedocs/" target="_blank" rel="noopener noreferrer" class="help-link-btn" title="Open HiveBoard documentation">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span>Help ↗</span>
+          </a>
+        </div>
         <button id="profileCloseBtn" aria-label="Close">✕</button>
       </div>
       <div id="profileBody"></div>
     </div>
   </div>
 
+  <div id="statsOverlay" class="overlay hidden">
+    <div class="overlay-panel stats-overlay-panel">
+      <div class="overlay-header">
+        <div class="overlay-header-left">
+          <h2>Statistics</h2>
+          <a href="https://hiveboard-bench.github.io/hivedocs/benchmark/evaluation-runner" target="_blank" rel="noopener noreferrer" class="help-link-btn" title="Open HiveBoard evaluation runner documentation">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span>Help ↗</span>
+          </a>
+        </div>
+        <button id="statsCloseBtn" aria-label="Close">✕</button>
+      </div>
+      <p class="profile-intro">Review trial records and submission progress against official HiveBoard benchmark requirements.</p>
+      <div id="statsBody"></div>
+    </div>
+  </div>
+
+  <div id="uploadOverlay" class="overlay hidden">
+    <div class="overlay-panel upload-overlay-panel">
+      <div class="overlay-header"><h2>Upload to Hub</h2></div>
+      <div id="uploadSummary"></div>
+      <div class="upload-actions">
+        <button id="uploadCancelBtn" type="button">Cancel</button>
+        <button id="uploadConfirmBtn" type="button" class="primary">Upload</button>
+      </div>
+    </div>
+  </div>
+
   <div id="taskOverlay" class="overlay hidden">
     <div class="overlay-panel task-overlay-panel">
       <div class="overlay-header">
-        <h2>Select task</h2>
+        <div class="overlay-header-left">
+          <h2>Select task</h2>
+          <a href="https://hiveboard-bench.github.io/hivedocs/benchmark/tasks" target="_blank" rel="noopener noreferrer" class="help-link-btn" title="Open HiveBoard benchmark tasks documentation">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"></path><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+            <span>Help ↗</span>
+          </a>
+        </div>
         <button id="taskCloseBtn" aria-label="Close">✕</button>
       </div>
+      <p class="profile-intro">Choose an attachment task for this trial. See the <a href="https://hiveboard-bench.github.io/hivedocs/benchmark/tasks" target="_blank" rel="noopener noreferrer">HiveBoard tasks documentation ↗</a> for definitions and timeouts.</p>
       <div id="taskGrid"></div>
     </div>
   </div>
 
-  <script src="/app.js"></script>
+  <div id="failureHelpOverlay" class="overlay hidden">
+    <div class="overlay-panel failure-help-overlay-panel">
+      <div class="overlay-header">
+        <h2>Failure Causes Guide</h2>
+        <button id="failureHelpCloseBtn" aria-label="Close">✕</button>
+      </div>
+      <div id="failureHelpBody">
+        <p class="profile-intro">Use this reference to distinguish between failure causes when annotating unsuccessful trials.</p>
+        <div class="card failure-help-card">
+          <table class="failure-help-table">
+            <thead>
+              <tr>
+                <th>Cause</th>
+                <th>Use when</th>
+                <th>Discriminator</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr data-cause="grasp_geometry">
+                <td><code>grasp_geometry</code></td>
+                <td>The end-effector cannot engage the part in a stable grasp</td>
+                <td>Grasp never acquired. Mismatch of jaw width, finger shape, or approach envelope</td>
+              </tr>
+              <tr data-cause="kinematic_limit">
+                <td><code>kinematic_limit</code></td>
+                <td>The platform cannot produce the required motion</td>
+                <td>Joint at range limit, singularity, or wrist roll exhausted mid-rotation</td>
+              </tr>
+              <tr data-cause="perception">
+                <td><code>perception</code></td>
+                <td>Alignment or state could not be judged reliably</td>
+                <td>Confident but wrong alignment; occlusion at the decisive moment. <strong>Judgement</strong> failed</td>
+              </tr>
+              <tr data-cause="slip">
+                <td><code>slip</code></td>
+                <td>A grasp was acquired and then lost</td>
+                <td>Relative motion between part and fingers after a stable hold</td>
+              </tr>
+              <tr data-cause="force_limit">
+                <td><code>force_limit</code></td>
+                <td>Available grasp or actuation force was insufficient</td>
+                <td>Hold maintained, effort saturated, mechanism did not move</td>
+              </tr>
+              <tr data-cause="control_precision">
+                <td><code>control_precision</code></td>
+                <td>Control resolution too coarse for the task</td>
+                <td>Target correct and reachable, but increment larger than the tolerance. Over/undershoot, binding, oscillation</td>
+              </tr>
+              <tr data-cause="other">
+                <td><code>other</code></td>
+                <td>Nothing above fits</td>
+                <td>Explain in <code>Reason</code>. Hardware faults, breakage, software failure</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function openProfileOverlay() {
+      var overlay = document.getElementById("profileOverlay");
+      if (overlay) overlay.classList.remove("hidden");
+      if (typeof window._loadProfile === "function") {
+        window._loadProfile();
+      }
+    }
+    function openStatsOverlay() {
+      var overlay = document.getElementById("statsOverlay");
+      if (overlay) overlay.classList.remove("hidden");
+      if (typeof window._loadStats === "function") {
+        window._loadStats();
+      }
+    }
+  </script>
+  <script src="/app.js?v=38"></script>
+  <script src="/runner.js?v=36"></script>
+  <script src="/automatic.js?v=8"></script>
+  <script src="/guide.js?v=2"></script>
+  <script src="/nav.js?v=4"></script>
 </body>
 </html>

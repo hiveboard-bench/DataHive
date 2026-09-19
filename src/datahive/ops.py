@@ -9,13 +9,14 @@ import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from datahive.config import Config, load_config
+from datahive.config import Config, load_config, now_iso
 from datahive.episode import read_header
 from datahive.errors import DatahiveError, EpisodeNotFound, HubError
+from datahive.hf_limits import directory_problems
 from datahive.hub import Hub, remote_paths, remote_setup_jpg_path, remote_trials_csv_path
 from datahive.index import EpisodeRecord, Index
 from datahive.paths import resolve_episode_paths, trials_csv_path
-from datahive.trials import get_row, merge_rows, read_rows, upsert_row
+from datahive.trials import get_row, merge_rows, read_rows, set_fields, upsert_row
 
 
 def _get_hub(hub: Hub | None, cfg: Config | None = None) -> Hub:
@@ -56,13 +57,20 @@ def upload_episode(
 
         paths = resolve_episode_paths(samples_root, episode_id, rec.session_id)
         header = read_header(paths.h5)
+
+        dir_problems, _ = directory_problems(samples_root, {rec.session_id})
+        if dir_problems:
+            idx.set_status(episode_id, "upload_failed", error=dir_problems[0])
+            return UploadResult(episode_id, uploaded=False, error=dir_problems[0])
+
         hub_client = _get_hub(hub)
+
+        uploaded_at = now_iso()
+        previous = set_fields(paths.trials_csv, header.trial_id, uploaded_at=uploaded_at)
+        current_hash = idx.refresh_hash(episode_id)
 
         files = remote_paths(header, paths)
         try:
-            # Merge trials.csv with the remote copy so two machines
-            # uploading different episodes of the same session don't
-            # clobber each other's rows (local wins on conflict).
             local_rows = read_rows(paths.trials_csv)
             remote_text = hub_client.download_text(remote_trials_csv_path(rec.session_id))
             if remote_text:
@@ -95,10 +103,13 @@ def upload_episode(
 
             hub_client.upload_episode(files, commit_message=f"Upload episode {episode_id}")
         except HubError as e:
+            if previous is not None:
+                set_fields(paths.trials_csv, header.trial_id, **previous)
+                idx.refresh_hash(episode_id)
             idx.set_status(episode_id, "upload_failed", error=str(e))
             return UploadResult(episode_id, uploaded=False, error=str(e))
 
-        idx.mark_uploaded(episode_id, current_hash)
+        idx.mark_uploaded(episode_id, current_hash, when=uploaded_at)
         return UploadResult(episode_id, uploaded=True, remote_paths=list(files.keys()))
 
 
@@ -153,8 +164,6 @@ def sync(samples_root: Path, *, hub: Hub | None = None, dry_run: bool = False) -
     with Index(samples_root) as idx:
         report.newly_recorded = idx.scan()
 
-        # Recompute content_hash for everything so a re-annotation or a
-        # touched file is detected even if nothing has uploaded since.
         for rec in idx.all():
             try:
                 idx.refresh_hash(rec.episode_id)
@@ -227,6 +236,12 @@ def delete_episode(
             )
             deleted_remote = True
 
+        trial_id = None
+        try:
+            trial_id = read_header(paths.h5).trial_id
+        except Exception:
+            pass
+
         if paths.h5.exists():
             paths.h5.unlink()
         for v in paths.videos.values():
@@ -234,6 +249,10 @@ def delete_episode(
                 v.unlink()
 
         idx.remove(episode_id)
+        if trial_id and not any(r.session_id == rec.session_id and r.trial_id == trial_id for r in idx.all()):
+            from datahive.trials import delete_row
+
+            delete_row(paths.trials_csv, trial_id)
 
     return DeleteResult(episode_id, deleted_local=True, deleted_remote=deleted_remote)
 
@@ -250,6 +269,7 @@ class EpisodeStatus:
     n_steps: int | None = None
     duration_s: float | None = None
     remote: bool | None = None
+    missing: list[str] | None = None
 
 
 def list_episodes(
@@ -271,6 +291,15 @@ def list_episodes(
             Path(p).stem for p in hub_client.list_files() if p.endswith(".h5")
         }
 
+    from datahive.consistency import missing_parts
+
+    def _missing(rec):
+        try:
+            paths = resolve_episode_paths(samples_root, rec.episode_id, rec.session_id)
+            return missing_parts(paths, read_header(paths.h5))
+        except Exception:
+            return None
+
     out = []
     for r in records:
         out.append(
@@ -285,6 +314,7 @@ def list_episodes(
                 n_steps=r.n_steps,
                 duration_s=r.duration_s,
                 remote=(r.episode_id in remote_ids) if remote_ids is not None else None,
+                missing=_missing(r),
             )
         )
     return out
@@ -319,7 +349,7 @@ def get_sync_status(samples_root: Path, *, hub: Hub | None = None) -> SyncStatus
 
     try:
         hub_client = _get_hub(hub, cfg)
-        hub_client.whoami()  # cheap, read-only reachability check
+        hub_client.whoami()
         return SyncStatus(
             configured=True, connected=True, repo_id=cfg.repo_id,
             pending_count=pending, uploaded_count=uploaded, total_count=len(records),

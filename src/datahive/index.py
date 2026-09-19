@@ -10,7 +10,7 @@ import sqlite3
 from dataclasses import dataclass
 from pathlib import Path
 
-from datahive.config import now_iso
+from datahive.config import now_iso, to_utc_iso
 from datahive.paths import index_db_path, iter_all_episode_ids
 
 STATUSES = ("recorded", "validated", "uploaded", "upload_failed")
@@ -122,9 +122,7 @@ class Index:
             params.extend([like, like, like])
         if clauses:
             sql += " WHERE " + " AND ".join(clauses)
-        # Group-by-day in the GUI relies on created_at (the episode's own
-        # recording timestamp, from its header) as the primary sort key;
-        # rows without one (shouldn't normally happen) sort last.
+
         sql += " ORDER BY (created_at IS NULL), created_at DESC, updated_at DESC"
         cur = self.conn.execute(sql, params)
         return [self._row_to_record(r) for r in cur.fetchall()]
@@ -178,7 +176,7 @@ class Index:
                 continue
             header = _read_header_safe(session_id, episode_id)
             trial_id = header.trial_id if header else None
-            created_at = header.created_at.isoformat() if header else None
+            created_at = to_utc_iso(header.created_at) if header else None
             stats = _stats_safe(session_id, episode_id)
             self._upsert_new(
                 episode_id, session_id, trial_id, created_at, stats["n_steps"], stats["duration_s"]
@@ -189,7 +187,7 @@ class Index:
             if rec.created_at and rec.n_steps is not None:
                 continue
             header = _read_header_safe(rec.session_id, rec.episode_id)
-            created_at = header.created_at.isoformat() if header else rec.created_at
+            created_at = to_utc_iso(header.created_at) if header else rec.created_at
             stats = _stats_safe(rec.session_id, rec.episode_id)
             with self.conn:
                 self.conn.execute(

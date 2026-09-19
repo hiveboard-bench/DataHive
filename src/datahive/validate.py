@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from datahive.attachments import is_composed_assembly
+from datahive.consistency import consistency_problems, missing_parts
 from datahive.episode import read_header, sample_rate_hz
 from datahive.errors import DatahiveError, ProfileIncomplete, ProfileMissing, ValidationError
 from datahive.index import Index
@@ -23,13 +24,11 @@ def validate_episode(samples_root: Path, episode_id: str, *, update_index: bool 
     problems: list[str] = []
     warnings: list[str] = []
 
-    # 1. Profile must exist and be complete -- hard requirement, not a warning.
     try:
         load_profile(samples_root)
     except (ProfileMissing, ProfileIncomplete) as e:
         raise ValidationError(str(e), problems=[str(e)]) from e
 
-    # 2. Episode files must resolve and header must parse.
     try:
         paths = resolve_episode_paths(samples_root, episode_id)
     except Exception as e:
@@ -44,30 +43,28 @@ def validate_episode(samples_root: Path, episode_id: str, *, update_index: bool 
 
     if not header.low_level.get("mode"):
         problems.append("Episode header has no low_level.mode recorded.")
-    if not header.manipulator.get("joint_names"):
-        problems.append("Episode header has no manipulator.joint_names recorded.")
     if not header.cameras:
         problems.append("Episode header lists no cameras.")
     problems.extend(camera_consistency_problems(header.cameras))
 
-    # 3. Sample rate check.
     rate = sample_rate_hz(paths.h5)
     if rate is None:
         problems.append("Could not determine proprioception sample rate (no timestamps).")
-    elif rate < MIN_SAMPLE_RATE_HZ * 0.99:  # small tolerance for floating-point jitter
+    elif rate < MIN_SAMPLE_RATE_HZ * 0.99:
         problems.append(
             f"Proprioception sample rate is {rate:.1f} Hz, below the required "
             f"{MIN_SAMPLE_RATE_HZ:.0f} Hz."
         )
 
-    # 4. Videos referenced in the header must exist on disk.
-    for cam in header.cameras:
-        fname = cam.get("file")
-        if fname and not (paths.h5.parent / fname).exists():
-            warnings.append(f"Camera '{cam.get('name')}' references missing file {fname}")
+    if rate is not None and header.control_freq and abs(rate - header.control_freq) > 0.1 * header.control_freq:
+        warnings.append(
+            f"Recorded rate is {rate:.1f} Hz but the profile's control_freq is {header.control_freq:g} Hz."
+        )
 
-    # 5. trials.csv must have a complete, rule-satisfying row for this trial.
     row = get_row(paths.trials_csv, header.trial_id)
+    extra_problems, extra_warnings = consistency_problems(samples_root, paths, header, row)
+    problems.extend(extra_problems)
+    warnings.extend(extra_warnings)
     if row is None:
         problems.append(
             f"No annotation row found in {paths.trials_csv} for trial_id "
@@ -85,6 +82,14 @@ def validate_episode(samples_root: Path, episode_id: str, *, update_index: bool 
             TrialAnnotation.from_csv_row(row, context=context)
         except Exception as e:
             problems.append(f"Annotation for trial '{header.trial_id}' is invalid: {e}")
+
+    missing = missing_parts(paths, header)
+    if missing:
+        summary = f"Episode is incomplete: missing {', '.join(missing)}. Upload the missing file(s) in Annotate."
+        if "HDF5 recording data" in missing:
+            problems = [summary]
+        else:
+            problems.insert(0, summary)
 
     if problems:
         bullets = "\n".join(f"  - {p}" for p in problems)

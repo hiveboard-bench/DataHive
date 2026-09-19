@@ -83,6 +83,30 @@ def upsert_row(csv_path: Path, annotation: TrialAnnotation) -> None:
         _write_rows(csv_path, rows)
 
 
+def set_fields(csv_path: Path, trial_id: str, **fields: str) -> dict[str, str] | None:
+    """Updates columns of one row in place; returns the previous values of
+    those columns (for rollback), or None if the row does not exist."""
+    with _FileLock(csv_path):
+        rows = read_rows(csv_path)
+        for row in rows:
+            if row.get("trial_id") == trial_id:
+                previous = {k: row.get(k, "") for k in fields}
+                row.update(fields)
+                _write_rows(csv_path, rows)
+                return previous
+    return None
+
+
+def delete_row(csv_path: Path, trial_id: str) -> bool:
+    with _FileLock(csv_path):
+        rows = read_rows(csv_path)
+        kept = [r for r in rows if r.get("trial_id") != trial_id]
+        if len(kept) == len(rows):
+            return False
+        _write_rows(csv_path, kept)
+        return True
+
+
 def merge_rows(
     local_rows: list[dict[str, str]], remote_rows: list[dict[str, str]]
 ) -> list[dict[str, str]]:

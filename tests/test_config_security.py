@@ -98,6 +98,47 @@ def test_init_config_dir_overrides_default_location(tmp_path, monkeypatch):
     assert (custom_dir / "config.yaml").is_file()
 
 
+def test_root_config_dir_and_version_options(tmp_path, monkeypatch):
+    """The root datahive CLI displays --version and --config-dir DIR in its help
+    output and responds properly to both flags."""
+    from typer.testing import CliRunner
+
+    from datahive.cli import app
+
+    runner = CliRunner()
+
+    # Bare invocation prints help with --version, --config-dir, and typical session epilog
+    result = runner.invoke(app, [])
+    assert result.exit_code == 2
+    assert "--version" in result.output
+    assert "Show the version and exit." in result.output
+    assert "--config-dir" in result.output
+    assert "DIR" in result.output
+    assert "contributor_config.yaml" in result.output
+    assert "$OOPSIE_CONFIG_DIR" in result.output
+    assert "A typical session, in order:" in result.output
+    assert "datahive init" in result.output
+    assert "datahive new-profile" in result.output
+    assert "datahive annotate" in result.output
+    assert "datahive validate" in result.output
+    assert "datahive upload" in result.output
+
+    # --version prints version and exits 0
+    version_res = runner.invoke(app, ["--version"])
+    assert version_res.exit_code == 0
+    assert "datahive, version 0.1.0" in version_res.output
+
+    # Root --config-dir overrides location
+    custom_dir = tmp_path / "root-custom-config"
+    monkeypatch.chdir(tmp_path)
+    init_res = runner.invoke(
+        app,
+        ["--config-dir", str(custom_dir), "init", "--lab-id", "lab_test", "--token", "hf_faketoken1234", "--no-verify"],
+    )
+    assert init_res.exit_code == 0, init_res.output
+    assert (custom_dir / "config.yaml").is_file()
+
+
 def test_mask_token():
     assert mask_token("") == ""
     assert mask_token("short") == "*****"

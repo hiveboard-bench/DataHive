@@ -11,7 +11,7 @@ from datahive.attachments import is_composed_assembly
 from datahive.episode import read_header
 from datahive.errors import AnnotationError
 from datahive.paths import resolve_episode_paths
-from datahive.schema import TrialAnnotation
+from datahive.schema import ANNOTATION_SCHEMA_CURRENT, TrialAnnotation
 from datahive.trials import upsert_row
 
 
@@ -31,27 +31,25 @@ def annotate_episode(
     data.setdefault("lab_id", header.lab_id)
     data.setdefault("platform_id", header.platform_id)
     if "date" not in data or data["date"] is None:
-        from datetime import date
+        from datetime import datetime, timezone
 
-        data["date"] = date.today().isoformat()
-    # operator_name/annotator_name are plain (non-Optional) strings on the
-    # model; callers (the GUI's JSON payload in particular) may send an
-    # explicit None for "not provided" -- normalize that to "" here so both
-    # the CLI and the GUI can omit them freely.
+        data["date"] = datetime.now(timezone.utc).date().isoformat()
     for name_field in ("operator_name", "annotator_name", "failure_cause_detail"):
         if data.get(name_field) is None:
             data[name_field] = ""
 
-    # completion_time_s is derived from the episode's own recorded duration
-    # rather than typed in by hand -- the .h5's timestamps are the source
-    # of truth for how long a successful trial actually took. A caller can
-    # still pass an explicit value to override it.
     if data.get("outcome") == "success" and data.get("completion_time_s") is None:
         from datahive.episode import episode_stats
 
         duration = episode_stats(paths.h5).get("duration_s")
         if duration is not None:
             data["completion_time_s"] = round(duration, 3)
+            data.setdefault("completion_source", "hdf5")
+
+    from datetime import datetime, timezone
+
+    data["annotated_at"] = datetime.now(timezone.utc).isoformat()
+    data["schema_version"] = ANNOTATION_SCHEMA_CURRENT
 
     attachment_id = data.get("attachment_id")
     composed = is_composed_assembly(attachment_id or "", samples_root)
@@ -63,6 +61,7 @@ def annotate_episode(
         raise AnnotationError(f"Invalid annotation: {e}") from e
 
     upsert_row(paths.trials_csv, annotation)
+    write_h5_annotation(paths.h5, annotation)
 
     if validate_after:
         from datahive.validate import validate_episode
@@ -70,6 +69,55 @@ def annotate_episode(
         try:
             validate_episode(samples_root, episode_id)
         except Exception:
-            pass  # annotate() succeeds even if other validation problems remain
-
+            pass  
+        
     return annotation
+
+
+def _annotator_key(name: str) -> str:
+    return (name or "unknown").strip().replace("/", "_") or "unknown"
+
+
+def write_h5_annotation(h5_path: Path, annotation: TrialAnnotation) -> None:
+    """Stores the annotation inside the episode as
+    episode_annotations/<annotator>/ (attrs), stamped with schema_version, so
+    the file stays self-describing if trials.csv is lost or the episode moved."""
+    import json
+
+    import h5py
+
+    row = annotation.to_csv_row()
+    key = _annotator_key(annotation.annotator_name)
+    with h5py.File(h5_path, "r+") as f:
+        root = f.require_group("episode_annotations")
+        if key in root:
+            del root[key]
+        grp = root.create_group(key)
+        grp.attrs["schema_version"] = annotation.schema_version
+        grp.attrs["source"] = "human"
+        grp.attrs["timestamp"] = row["annotated_at"]
+        grp.attrs["annotation"] = json.dumps(row, sort_keys=True)
+
+
+def read_h5_annotations(h5_path: Path) -> dict[str, dict]:
+    """{annotator: row-dict} from the episode file. Groups without a
+    schema_version are upcast to the legacy version; nothing is rewritten."""
+    import json
+
+    import h5py
+
+    from datahive.schema import ANNOTATION_SCHEMA_LEGACY
+
+    out: dict[str, dict] = {}
+    with h5py.File(h5_path, "r") as f:
+        root = f.get("episode_annotations")
+        if root is None:
+            return out
+        for name, grp in root.items():
+            try:
+                row = json.loads(grp.attrs.get("annotation", "{}"))
+            except (TypeError, ValueError):
+                row = {}
+            row["schema_version"] = grp.attrs.get("schema_version") or row.get("schema_version") or ANNOTATION_SCHEMA_LEGACY
+            out[name] = row
+    return out

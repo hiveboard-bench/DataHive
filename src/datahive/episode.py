@@ -20,7 +20,7 @@ import numpy as np
 
 from datahive.paths import EpisodePaths, resolve_episode_paths
 from datahive.profile import RobotProfile, load_profile, profile_snapshot
-from datahive.schema import EpisodeHeader
+from datahive.schema import EPISODE_SCHEMA_CURRENT, EpisodeHeader
 
 resolve_episode = resolve_episode_paths
 
@@ -42,12 +42,17 @@ _JSON_HEADER_FIELDS = {
     "cameras",
     "units_and_frames",
     "board_fabrication",
+    "action_space",
+    "action_joint_names",
+    "gains",
+    "intrinsic_calibration_matrix",
+    "extrinsic_calibration_matrix",
 }
 
-# Fields that are Optional[str] on EpisodeHeader -- an empty string written
-# to the .h5 (h5py attrs can't store None) is read back as None for these
-# only. Required string fields (platform_id, etc.) keep "" as "".
-_NULLABLE_STRING_FIELDS = {"policy", "board_mounting", "hiveboard_version", "control_mode"}
+_NULLABLE_STRING_FIELDS = {
+    "collection_mode", "manual_timer_s", "orientation_representation", "robot_state_orientation_representation", "policy", "board_mounting", "hiveboard_version", "control_mode",
+    "robot_name", "gripper_name", "is_biarm", "uses_mobile_base", "control_freq",
+}
 
 
 def write_header(h5file: h5py.File, header: EpisodeHeader) -> None:
@@ -75,7 +80,7 @@ def read_header(h5_path: Path) -> EpisodeHeader:
             elif isinstance(raw, str) and raw == "" and key in _NULLABLE_STRING_FIELDS:
                 data[key] = None
             else:
-                data[key] = raw
+                data[key] = raw.item() if hasattr(raw, "item") else raw
     return EpisodeHeader.model_validate(data)
 
 
@@ -153,7 +158,7 @@ def read_trajectory(
                 continue
             arr = grp[name][:]
             if arr.ndim == 2 and arr.shape[1] == 1:
-                arr = arr.reshape(-1)  # scalar-per-sample fields (e.g. timestamp)
+                arr = arr.reshape(-1)  
             n = arr.shape[0] if n is None else n
             result[name] = arr
 
@@ -197,6 +202,49 @@ def content_hash(samples_root: Path, episode_id: str, session_id: str | None = N
     return h.hexdigest()
 
 
+def make_header(
+    profile: RobotProfile, *, session_id: str, episode_id: str, trial_id: str,
+    task_ids: list[str] | None, lab_id: str, policy: str | None = None,
+    collection_mode: str | None = None,
+) -> EpisodeHeader:
+    """Header for a new episode: the current robot profile snapshotted, plus the
+    episode identity. Shared by EpisodeWriter and manually uploaded episodes."""
+    snapshot = profile_snapshot(profile)
+    return EpisodeHeader(
+        lab_id=lab_id,
+        platform_id=snapshot.get("platform_id") or "",
+        session_id=session_id,
+        episode_id=episode_id,
+        trial_id=trial_id,
+        task_ids=task_ids or [],
+        hiveboard_version=snapshot.get("hiveboard_version"),
+        board_mounting=snapshot.get("board_mounting"),
+        board_fabrication=snapshot.get("board_fabrication") or {},
+        manipulator=snapshot.get("manipulator") or {},
+        end_effector=snapshot.get("end_effector") or {},
+        low_level=snapshot.get("low_level") or {},
+        control_mode=snapshot.get("control_mode"),
+        policy=policy if policy is not None else snapshot.get("policy"),
+        robot_name=snapshot.get("robot_name"),
+        gripper_name=snapshot.get("gripper_name"),
+        is_biarm=snapshot.get("is_biarm"),
+        uses_mobile_base=snapshot.get("uses_mobile_base"),
+        control_freq=snapshot.get("control_freq"),
+        action_space=snapshot.get("action_space") or [],
+        action_joint_names=snapshot.get("action_joint_names") or [],
+        orientation_representation=snapshot.get("orientation_representation"),
+        robot_state_orientation_representation=snapshot.get("robot_state_orientation_representation"),
+        gains=snapshot.get("gains") or {},
+        intrinsic_calibration_matrix=snapshot.get("intrinsic_calibration_matrix") or {},
+        extrinsic_calibration_matrix=snapshot.get("extrinsic_calibration_matrix") or {},
+        cameras=snapshot.get("cameras") or [],
+        units_and_frames=snapshot.get("units_and_frames") or {},
+        created_at=datetime.now(timezone.utc),
+        schema_version=EPISODE_SCHEMA_CURRENT,
+        collection_mode=collection_mode,
+    )
+
+
 class EpisodeWriter:
     """Public library API for recording an episode. Snapshots the current
     robot_profile.yaml into the episode's own header at creation time, so
@@ -212,6 +260,8 @@ class EpisodeWriter:
         task_ids: list[str] | None = None,
         lab_id: str,
         profile: RobotProfile | None = None,
+        policy: str | None = None,
+        collection_mode: str | None = None,
     ):
         self.samples_root = Path(samples_root)
         self.session_id = session_id
@@ -219,8 +269,6 @@ class EpisodeWriter:
 
         if profile is None:
             profile = load_profile(self.samples_root)
-        snapshot = profile_snapshot(profile)
-
         edir = self.samples_root / session_id / "episodes"
         edir.mkdir(parents=True, exist_ok=True)
         self.paths = EpisodePaths(
@@ -233,24 +281,9 @@ class EpisodeWriter:
             setup_jpg=self.samples_root / session_id / "setup.jpg",
         )
 
-        header = EpisodeHeader(
-            lab_id=lab_id,
-            platform_id=snapshot.get("platform_id") or "",
-            session_id=session_id,
-            episode_id=episode_id,
-            trial_id=trial_id,
-            task_ids=task_ids or [],
-            hiveboard_version=snapshot.get("hiveboard_version"),
-            board_mounting=snapshot.get("board_mounting"),
-            board_fabrication=snapshot.get("board_fabrication") or {},
-            manipulator=snapshot.get("manipulator") or {},
-            end_effector=snapshot.get("end_effector") or {},
-            low_level=snapshot.get("low_level") or {},
-            control_mode=snapshot.get("control_mode"),
-            policy=snapshot.get("policy"),
-            cameras=snapshot.get("cameras") or [],
-            units_and_frames=snapshot.get("units_and_frames") or {},
-            created_at=datetime.now(timezone.utc),
+        header = make_header(
+            profile, session_id=session_id, episode_id=episode_id, trial_id=trial_id,
+            task_ids=task_ids, lab_id=lab_id, policy=policy, collection_mode=collection_mode,
         )
         self.header = header
         self._file = h5py.File(self.paths.h5, "w")
@@ -314,13 +347,19 @@ class EpisodeWriter:
             shutil.copy2(str(src), str(dest))
         self.paths.videos[camera_name] = dest
 
-        # Record the actual filename on the matching camera spec, both in
-        # memory and back into the already-written header attrs -- the
-        # header must stay self-describing (this is also what makes
-        # validate.py's "referenced video file exists" check meaningful).
+        from datahive.consistency import probe_video
+
+        try:
+            info = probe_video(dest)
+        except ValueError:
+            info = None
         for cam in self.header.cameras:
             if cam.get("name") == camera_name:
                 cam["file"] = dest.name
+                if info:
+                    cam["resolution"] = f"{info['width']}x{info['height']}"
+                    cam["fps"] = round(info["fps"], 3)
+                    cam["encoding"] = info["encoding"]
                 break
         if self._file is not None:
             self._file.attrs["cameras"] = json.dumps(self.header.cameras)

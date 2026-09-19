@@ -25,19 +25,23 @@ from datahive.errors import ConfigInsideGitRepo, ConfigMissing, InsecureConfigPe
 CONFIG_DIRNAME = ".datahive"
 CONFIG_FILENAME = "config.yaml"
 _ENV_HOME = "DATAHIVE_CONFIG_HOME"
+_ENV_OOPSIE = "OOPSIE_CONFIG_DIR"
 
 
 def config_home() -> Path:
     """Directory holding config.yaml. Overridable via DATAHIVE_CONFIG_HOME
-    (used by tests so nothing ever touches a real $HOME)."""
-    override = os.environ.get(_ENV_HOME)
+    or OOPSIE_CONFIG_DIR (used by tests so nothing ever touches a real $HOME)."""
+    override = os.environ.get(_ENV_HOME) or os.environ.get(_ENV_OOPSIE)
     if override:
         return Path(override)
     return Path.home() / CONFIG_DIRNAME
 
 
 def config_path() -> Path:
-    return config_home() / CONFIG_FILENAME
+    ch = config_home()
+    if (ch / "contributor_config.yaml").is_file() and not (ch / CONFIG_FILENAME).is_file():
+        return ch / "contributor_config.yaml"
+    return ch / CONFIG_FILENAME
 
 
 @dataclass
@@ -57,7 +61,7 @@ class Config:
             "created_at": self.created_at,
         }
 
-    def __repr__(self) -> str:  # never leak the token via repr()/logging
+    def __repr__(self) -> str: 
         return (
             f"Config(lab_id={self.lab_id!r}, repo_id={self.repo_id!r}, "
             f"hf_token={mask_token(self.hf_token)!r}, endpoint={self.endpoint!r})"
@@ -156,10 +160,13 @@ def load_config(*, path: Path | None = None) -> Config:
         )
     check_permissions(target)
     raw = yaml.safe_load(target.read_text(encoding="utf-8")) or {}
+    lab_id = raw.get("lab_id", "")
+    repo_id = raw.get("repo_id") or (f"sua-org/{lab_id}" if lab_id else "")
+    hf_token = raw.get("hf_token") or raw.get("huggingface_token", "")
     return Config(
-        lab_id=raw.get("lab_id", ""),
-        repo_id=raw.get("repo_id", ""),
-        hf_token=raw.get("hf_token", ""),
+        lab_id=lab_id,
+        repo_id=repo_id,
+        hf_token=hf_token,
         endpoint=raw.get("endpoint"),
         created_at=raw.get("created_at", ""),
     )
@@ -167,6 +174,14 @@ def load_config(*, path: Path | None = None) -> Config:
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def to_utc_iso(value: "datetime | str") -> str:
+    """ISO-8601 in UTC (+00:00). Naive datetimes are taken to be UTC."""
+    dt = datetime.fromisoformat(value.replace("Z", "+00:00")) if isinstance(value, str) else value
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc).isoformat()
 
 
 GITIGNORE_TEMPLATE = """\

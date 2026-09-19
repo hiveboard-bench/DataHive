@@ -9,6 +9,17 @@ from typing import Any, Optional
 from pydantic import BaseModel, Field, model_validator
 
 
+EPISODE_SCHEMA_V1 = "datahive_episode_v1"
+EPISODE_SCHEMA_CURRENT = EPISODE_SCHEMA_V1
+EPISODE_SCHEMA_LEGACY = "datahive_episode_v0"
+KNOWN_EPISODE_SCHEMAS = frozenset({EPISODE_SCHEMA_LEGACY, EPISODE_SCHEMA_V1})
+
+ANNOTATION_SCHEMA_V1 = "datahive_trial_v1"
+ANNOTATION_SCHEMA_CURRENT = ANNOTATION_SCHEMA_V1
+ANNOTATION_SCHEMA_LEGACY = "datahive_trial_v0"
+KNOWN_ANNOTATION_SCHEMAS = frozenset({ANNOTATION_SCHEMA_LEGACY, ANNOTATION_SCHEMA_V1})
+
+
 class Outcome(StrEnum):
     success = "success"
     fail = "fail"
@@ -49,12 +60,16 @@ TRIAL_COLUMNS: tuple[str, ...] = (
     "failure_cause_detail",
     "severity",
     "completion_time_s",
+    "completion_source",
     "n_attempts",
     "n_regrasps",
     "stage_reached",
     "strategy",
     "annotator_name",
     "notes",
+    "annotated_at",
+    "uploaded_at",
+    "schema_version",
 )
 
 
@@ -80,15 +95,27 @@ class TrialAnnotation(BaseModel):
     failure_cause_detail: str = ""
     severity: Optional[FailureSeverity] = None
     completion_time_s: Optional[float] = Field(default=None, gt=0)
+    completion_source: Optional[str] = None  # timer | hdf5 | video
     n_attempts: Optional[int] = Field(default=None, ge=0)
     n_regrasps: Optional[int] = Field(default=None, ge=0)
     stage_reached: Optional[int] = Field(default=None, ge=0)
     strategy: Strategy
     annotator_name: str = ""
     notes: str = ""
+    annotated_at: Optional[datetime] = None
+    uploaded_at: Optional[datetime] = None
+    schema_version: str = ANNOTATION_SCHEMA_CURRENT
 
     @model_validator(mode="after")
     def _cross_field_rules(self, info):
+        if self.completion_source not in (None, "timer", "hdf5", "video"):
+            raise ValueError("completion_source must be one of timer, hdf5, video")
+        if self.schema_version not in KNOWN_ANNOTATION_SCHEMAS:
+            raise ValueError(
+                f"unsupported annotation schema_version '{self.schema_version}' "
+                f"(this DataHive understands {sorted(KNOWN_ANNOTATION_SCHEMAS)}); "
+                "upgrade datahive-tools"
+            )
         outcome = self.outcome
         if outcome != Outcome.success:
             if not self.failure_cause:
@@ -156,12 +183,16 @@ class TrialAnnotation(BaseModel):
             "failure_cause_detail": row.get("failure_cause_detail") or "",
             "severity": n(row.get("severity")),
             "completion_time_s": n(row.get("completion_time_s")),
+            "completion_source": n(row.get("completion_source")),
             "n_attempts": n(row.get("n_attempts")),
             "n_regrasps": n(row.get("n_regrasps")),
             "stage_reached": n(row.get("stage_reached")),
             "strategy": n(row.get("strategy")),
             "annotator_name": row.get("annotator_name") or "",
             "notes": row.get("notes") or "",
+            "annotated_at": n(row.get("annotated_at")),
+            "uploaded_at": n(row.get("uploaded_at")),
+            "schema_version": row.get("schema_version") or ANNOTATION_SCHEMA_LEGACY,
         }
         return cls.model_validate(data, context=context or {})
 
@@ -173,7 +204,7 @@ class CameraSpec(BaseModel):
     fps: Optional[float] = None
     position: Optional[str] = None
     orientation: Optional[str] = None
-    file: Optional[str] = None  # basename of the referenced .mp4
+    file: Optional[str] = None 
 
 
 class EpisodeHeader(BaseModel):
@@ -198,8 +229,23 @@ class EpisodeHeader(BaseModel):
     low_level: dict[str, Any] = Field(default_factory=dict)
     control_mode: Optional[str] = None
     policy: Optional[str] = None
+    robot_name: Optional[str] = None
+    gripper_name: Optional[str] = None
+    is_biarm: Optional[bool] = None
+    uses_mobile_base: Optional[bool] = None
+    control_freq: Optional[float] = None
+    action_space: list[str] = Field(default_factory=list)
+    action_joint_names: list[str] = Field(default_factory=list)
+    orientation_representation: Optional[str] = None
+    robot_state_orientation_representation: Optional[str] = None
+    gains: dict[str, Any] = Field(default_factory=dict)
+    intrinsic_calibration_matrix: dict[str, Any] = Field(default_factory=dict)
+    extrinsic_calibration_matrix: dict[str, Any] = Field(default_factory=dict)
+    collection_mode: Optional[str] = None
+    manual_timer_s: Optional[float] = None
     cameras: list[dict[str, Any]] = Field(default_factory=list)
     units_and_frames: dict[str, Any] = Field(default_factory=dict)
 
     created_at: datetime
+    schema_version: str = EPISODE_SCHEMA_LEGACY
     datahive_version: str = "0.1.0"

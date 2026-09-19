@@ -24,6 +24,15 @@ def _fill_profile(samples_root):
     data["board_mounting"] = "horizontal"
     data["hiveboard_version"] = "v2"
     data["platform_id"] = "rig-01"
+    data["robot_name"] = "test_arm"
+    data["gripper_name"] = "test_gripper"
+    data["is_biarm"] = False
+    data["uses_mobile_base"] = False
+    data["control_freq"] = 100
+    data["action_space"] = ["joint_position", "gripper_binary"]
+    data["action_joint_names"] = ["j0", "j1", "j2", "j3", "j4", "j5"]
+    data["policy"] = "teleop_spacemouse"
+    data["end_effector"] = {"type": "gripper", "actuated_dof": 1, "command_modality": "position"}
     path.write_text(yaml.safe_dump(data))
     return load_profile(samples_root)
 
@@ -49,7 +58,7 @@ def test_full_lifecycle(samples_root, fake_hub):
     annotate_episode(
         samples_root, "ep1",
         {
-            "attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 9.0,
+            "attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 1.5, "operator_name": "Op", "annotator_name": "Ann",
             "n_attempts": 1, "n_regrasps": 0, "strategy": "prehensile",
         },
     )
@@ -101,10 +110,10 @@ def test_validate_rejects_episode_with_mismatched_cameras(samples_root):
     # mismatched camera settings (simulating "recorded before the fix").
     stale_profile = RobotProfile.from_dict(
         {
-            "manipulator": {"model": "TestArm", "dof": 6, "joint_names": ["j1"]},
+            "manipulator": {"model": "TestArm", "dof": 6, "joint_names": [f"j{i}" for i in range(6)]},
             "low_level": {"mode": "stock"},
             "cameras": [
-                {"name": "external", "resolution": "1280x720", "fps": 30},
+                {"name": "external", "resolution": "1280x720", "encoding": "h264", "fps": 30},
                 {"name": "wrist", "resolution": "640x480", "fps": 30},
             ],
         }
@@ -139,9 +148,19 @@ def test_cli_end_to_end(tmp_path, monkeypatch):
 
     path = profile_path(samples)
     data = yaml.safe_load(path.read_text())
-    data["manipulator"] = {"model": "TestArm", "dof": 6, "joint_names": ["j1"]}
+    data["manipulator"] = {"model": "TestArm", "dof": 6, "joint_names": [f"j{i}" for i in range(6)]}
     data["low_level"] = {"mode": "stock"}
-    data["cameras"] = [{"name": "external"}]
+    data["cameras"] = [{"name": "external", "resolution": "1280x720", "encoding": "h264", "fps": 30}]
+    data["platform_id"] = "rig-01"
+    data["robot_name"] = "test_arm"
+    data["gripper_name"] = "test_gripper"
+    data["is_biarm"] = False
+    data["uses_mobile_base"] = False
+    data["control_freq"] = 100
+    data["action_space"] = ["joint_position", "gripper_binary"]
+    data["action_joint_names"] = ["j0", "j1", "j2", "j3", "j4", "j5"]
+    data["policy"] = "teleop_spacemouse"
+    data["end_effector"] = {"type": "gripper", "actuated_dof": 1, "command_modality": "position"}
     path.write_text(yaml.safe_dump(data))
     profile = load_profile(samples)
 
@@ -155,7 +174,7 @@ def test_cli_end_to_end(tmp_path, monkeypatch):
         [
             "annotate", "ep1", "--samples", str(samples), "--non-interactive",
             "--attachment-id", "valve_ball", "--outcome", "success",
-            "--completion-time-s", "3.2", "--strategy", "prehensile",
+            "--completion-time-s", "1.5", "--operator-name", "Op", "--annotator-name", "Ann", "--strategy", "prehensile",
             "--n-attempts", "1", "--n-regrasps", "0",
         ],
     )

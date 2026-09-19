@@ -10,7 +10,7 @@ from typing import Optional
 
 import typer
 
-from datahive import ops
+from datahive import __version__, ops
 from datahive.config import (
     Config,
     check_permissions,
@@ -28,7 +28,89 @@ from datahive.paths import default_samples_root
 from datahive.profile import write_profile_skeleton
 from datahive.schema import FailureCause, Outcome, Strategy
 
-app = typer.Typer(add_completion=False, no_args_is_help=True, help="datahive-tools client CLI")
+import typer.rich_utils
+from rich import box
+from rich.console import Console
+from rich.table import Table
+from rich.text import Text
+
+_TYPICAL_SESSION_EPILOG = """\
+  [bold]A typical session, in order:[/bold]
+
+    [cyan]datahive init[/cyan]                  [dim]# once: lab id + Hugging Face token[/dim]
+    [cyan]datahive new-profile[/cyan]           [dim]# once per robot, then fill the file in[/dim]
+    [cyan]datahive check[/cyan]    <episode_id> [dim]# pre-annotation check (frames, Hz, MP4s)[/dim]
+    [cyan]datahive annotate[/cyan] <episode_id> [dim]# fill outcome/failure cause/strategy[/dim]
+    [cyan]datahive validate[/cyan] <episode_id> [dim]# local schema + profile checks[/dim]
+    [cyan]datahive upload[/cyan]   <episode_id> [dim]# upload one episode to the Hub[/dim]
+
+  [dim]Run 'datahive <command> --help' for one command's options.[/dim]"""
+
+_orig_rich_format_help = typer.rich_utils.rich_format_help
+
+
+def _custom_rich_format_help(*, obj, ctx, markup_mode):
+    epilog = obj.epilog
+    obj.epilog = None
+    try:
+        _orig_rich_format_help(obj=obj, ctx=ctx, markup_mode=markup_mode)
+    finally:
+        obj.epilog = epilog
+    if epilog:
+        console = typer.rich_utils._get_rich_console()
+        console.print(Text.from_markup(epilog.strip("\n")))
+
+
+typer.rich_utils.rich_format_help = _custom_rich_format_help
+
+_APP_HELP = """\
+Record, annotate, validate and publish robotic manipulation rollouts.
+
+Start with 'datahive init'."""
+
+app = typer.Typer(
+    add_completion=False,
+    no_args_is_help=True,
+    help=_APP_HELP,
+    epilog=_TYPICAL_SESSION_EPILOG,
+)
+
+
+def _version_callback(value: bool) -> None:
+    if value:
+        typer.echo(f"datahive, version {__version__}")
+        raise typer.Exit()
+
+
+@app.callback(invoke_without_command=True)
+def main_callback(
+    ctx: typer.Context,
+    version: Optional[bool] = typer.Option(
+        None,
+        "--version",
+        callback=_version_callback,
+        is_eager=True,
+        help="Show the version and exit.",
+    ),
+    config_dir: Optional[str] = typer.Option(
+        None,
+        "--config-dir",
+        metavar="DIR",
+        help=(
+            "Directory holding contributor_config.yaml "
+            "(overrides $OOPSIE_CONFIG_DIR for this invocation; robot profiles are unaffected)"
+        ),
+    ),
+) -> None:
+    if config_dir:
+        import os
+
+        os.environ["DATAHIVE_CONFIG_HOME"] = config_dir
+        os.environ["OOPSIE_CONFIG_DIR"] = config_dir
+
+    if ctx.invoked_subcommand is None:
+        typer.echo(ctx.get_help())
+        raise typer.Exit(2)
 
 
 def _samples_opt(samples: Optional[str]) -> Path:
@@ -45,9 +127,13 @@ def init(
     token: str = typer.Option(..., prompt=True, hide_input=True, help="Hugging Face token"),
     endpoint: Optional[str] = typer.Option(None, help="Custom HF endpoint (advanced)"),
     config_dir: Optional[str] = typer.Option(
-        None, "--config-dir",
-        help="Directory holding config.yaml (overrides $DATAHIVE_CONFIG_HOME for this "
-        "invocation; robot profiles are unaffected)",
+        None,
+        "--config-dir",
+        metavar="DIR",
+        help=(
+            "Directory holding contributor_config.yaml (overrides $OOPSIE_CONFIG_DIR for this "
+            "invocation; robot profiles are unaffected)"
+        ),
     ),
     no_verify: bool = typer.Option(False, "--no-verify", help="Skip the whoami() check"),
     force: bool = typer.Option(False, "--force"),
@@ -57,6 +143,7 @@ def init(
         import os
 
         os.environ["DATAHIVE_CONFIG_HOME"] = config_dir
+        os.environ["OOPSIE_CONFIG_DIR"] = config_dir
 
     target = config_path()
     if target.exists() and not force:
@@ -122,6 +209,76 @@ def validate(episode_id: str, samples: Optional[str] = SAMPLES_OPTION, json: boo
 
 
 @app.command()
+def check(
+    episode_id: Optional[str] = typer.Argument(None, help="Specific episode_id to check (default: check all recorded)"),
+    samples: Optional[str] = SAMPLES_OPTION,
+    json: bool = typer.Option(False, "--json", help="Output machine-readable JSON"),
+):
+    """Pre-annotation health check for recorded episodes (HDF5, Hz, MP4s)."""
+    from datahive.check import check_all_episodes, check_episode
+
+    root = _samples_opt(samples)
+    if episode_id:
+        results = [check_episode(root, episode_id)]
+    else:
+        results = check_all_episodes(root)
+
+    if not results:
+        if json:
+            typer.echo(jsonlib.dumps([]))
+        else:
+            typer.echo("No episodes found to check.")
+        return
+
+    if json:
+        typer.echo(jsonlib.dumps(results if not episode_id else results[0]))
+        if any(not r["ok"] for r in results):
+            raise typer.Exit(1)
+        return
+
+    table = Table(box=box.ROUNDED, show_header=True, header_style="bold cyan")
+    table.add_column("Episode", style="bold")
+    table.add_column("Status", justify="center")
+    table.add_column("Steps", justify="right")
+    table.add_column("Duration", justify="right")
+    table.add_column("Rate (Hz)", justify="right")
+    table.add_column("Cameras", justify="center")
+    table.add_column("Issues")
+
+    has_failures = False
+    for r in results:
+        ok = r["ok"]
+        if not ok:
+            has_failures = True
+            status_text = "[bold red]FAIL[/bold red]"
+        elif r["warnings"]:
+            status_text = "[bold yellow]WARN[/bold yellow]"
+        else:
+            status_text = "[bold green]PASS[/bold green]"
+
+        stats = r["stats"]
+        steps = str(stats["n_steps"]) if stats["n_steps"] else "–"
+        dur = f"{stats['duration_s']:.1f}s" if stats["duration_s"] is not None else "–"
+        hz = f"{stats['sample_rate_hz']:.0f} Hz" if stats["sample_rate_hz"] is not None else "–"
+        cams = str(len(stats["cameras"]))
+
+        issues = []
+        for p in r["problems"]:
+            issues.append(f"[red]• {p}[/red]")
+        for w in r["warnings"]:
+            issues.append(f"[yellow]• {w}[/yellow]")
+        issue_str = "\n".join(issues) if issues else "[dim]None[/dim]"
+
+        table.add_row(r["episode_id"], status_text, steps, dur, hz, cams, issue_str)
+
+    console = Console()
+    console.print(table)
+
+    if has_failures:
+        raise typer.Exit(1)
+
+
+@app.command()
 def annotate(
     episode_id: str,
     samples: Optional[str] = SAMPLES_OPTION,
@@ -166,9 +323,7 @@ def annotate(
         if not non_interactive and severity is None:
             raw = typer.prompt(f"severity ({'/'.join(s.value for s in FailureSeverity)}, blank to skip)", default="")
             severity = raw or None
-    # completion_time_s is not prompted for on success -- annotate_episode()
-    # derives it from the episode's own recorded duration. --completion-time-s
-    # still works as an explicit override if a lab needs one.
+
     if not non_interactive and n_attempts is None:
         n_attempts = typer.prompt("n_attempts", type=int, default=1)
     if not non_interactive and n_regrasps is None:
@@ -200,10 +355,47 @@ def annotate(
     typer.echo(f"Annotation saved for episode '{episode_id}'.")
 
 
+def format_preflight(summary: dict) -> str:
+    size_mb = summary["total_bytes"] / (1024 * 1024)
+    lines = [
+        f"{summary['n_episodes']} episode(s), {size_mb:.1f} MB | "
+        f"{summary['n_unannotated']} unannotated | {summary['n_invalid']} failing validation | "
+        f"{summary['n_warnings']} warning(s)"
+    ]
+    for ep in summary["episodes"]:
+        for p in ep["problems"]:
+            lines.append(f"  ! {ep['episode_id']}: {p}")
+        for w in ep["warnings"]:
+            lines.append(f"  ~ {ep['episode_id']}: {w}")
+    lines += [f"  ! {p}" for p in summary["directory_problems"]]
+    lines += [f"  ~ {w}" for w in summary["directory_warnings"]]
+    lines += [f"  ~ diversity: {d}" for d in summary["diversity"]]
+    return "\n".join(lines)
+
+
 @app.command()
-def upload(episode_id: str, samples: Optional[str] = SAMPLES_OPTION, force: bool = typer.Option(False, "--force")):
-    """Upload one episode to the Hub."""
+def upload(
+    episode_id: str,
+    samples: Optional[str] = SAMPLES_OPTION,
+    force: bool = typer.Option(False, "--force"),
+    yes: bool = typer.Option(False, "--yes", "-y", help="Skip the confirmation prompt"),
+    strict_diversity: bool = typer.Option(False, "--strict-diversity", help="Treat diversity warnings as an error"),
+):
+    """Upload one episode to the Hub (shows a summary first)."""
+    from datahive.preflight import upload_preflight
+
     root = _samples_opt(samples)
+    try:
+        summary = upload_preflight(root, [episode_id], hub=None)
+    except DatahiveError as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(1)
+    typer.echo(format_preflight(summary))
+    if summary["directory_problems"] or (strict_diversity and summary["diversity"]):
+        typer.echo("Aborting: fix the problems above first.", err=True)
+        raise typer.Exit(1)
+    if not yes and not typer.confirm("Upload?", default=True):
+        raise typer.Exit(1)
     try:
         result = ops.upload_episode(root, episode_id, force=force)
     except DatahiveError as e:
@@ -266,9 +458,37 @@ def list_cmd(
     if not episodes:
         typer.echo("No episodes found.")
         return
+
+    status_colors = {
+        "recorded": "yellow",
+        "validated": "cyan",
+        "uploaded": "green",
+        "upload_failed": "red",
+    }
+
+    table = Table(
+        title="DataHive Episodes",
+        box=box.ROUNDED,
+        header_style="bold cyan",
+        border_style="dim",
+        title_style="bold",
+    )
+    table.add_column("Episode ID", style="bold white")
+    table.add_column("Session", style="dim")
+    table.add_column("Status")
+    if remote:
+        table.add_column("Location")
+
     for e in episodes:
-        remote_tag = "" if e.remote is None else (" [remote]" if e.remote else " [local-only]")
-        typer.echo(f"{e.episode_id}\t{e.session_id}\t{e.status}{remote_tag}")
+        color = status_colors.get(e.status, "white")
+        status_styled = f"[{color}]{e.status}[/{color}]"
+        if remote:
+            loc = "[green]remote[/green]" if e.remote else "[yellow]local-only[/yellow]"
+            table.add_row(e.episode_id, e.session_id, status_styled, loc)
+        else:
+            table.add_row(e.episode_id, e.session_id, status_styled)
+
+    Console().print(table)
 
 
 @app.command()
@@ -294,7 +514,9 @@ def delete(
     )
 
 
-@app.command()
+@app.command("serve", hidden=True)
+@app.command("server", hidden=True)
+@app.command("interface")
 def serve(port: int = typer.Option(8000, "--port"), samples: Optional[str] = SAMPLES_OPTION):
     """Launch the local web GUI (binds to localhost only)."""
     import uvicorn
@@ -304,6 +526,9 @@ def serve(port: int = typer.Option(8000, "--port"), samples: Optional[str] = SAM
     root = _samples_opt(samples)
     application = create_app(root)
     uvicorn.run(application, host="127.0.0.1", port=port)
+
+
+interface = serve
 
 
 def main() -> None:

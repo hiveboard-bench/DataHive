@@ -16,6 +16,16 @@ STATIC_DIR = Path(__file__).parent / "static"
 
 def create_app(samples_root: Path) -> FastAPI:
     app = FastAPI(title="DataHive", docs_url="/api/docs")
+
+    @app.middleware("http")
+    async def add_no_cache_header(request, call_next):
+        response = await call_next(request)
+        if request.url.path.endswith((".js", ".css", ".html")) or request.url.path in ("/", ""):
+            response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+        return response
+
     app.include_router(build_router(samples_root))
     if STATIC_DIR.is_dir():
         app.mount("/", StaticFiles(directory=str(STATIC_DIR), html=True), name="static")

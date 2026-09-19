@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import re
+
 import pytest
 import yaml
 from fastapi.testclient import TestClient
 
 from datahive import ops
+from datahive.annotate import annotate_episode
+from datahive.trials import read_rows
+from datahive.paths import trials_csv_path
 from datahive.index import Index
 from datahive.paths import profile_path
 from datahive.profile import load_profile, write_profile_skeleton
@@ -21,9 +26,19 @@ def _client(samples_root):
 def _fill_profile(samples_root):
     path = write_profile_skeleton(samples_root)
     data = yaml.safe_load(path.read_text())
-    data["manipulator"] = {"model": "TestArm", "dof": 6, "joint_names": ["j1"]}
+    data["manipulator"] = {"model": "TestArm", "dof": 6, "joint_names": [f"j{i}" for i in range(6)]}
     data["low_level"] = {"mode": "stock"}
-    data["cameras"] = [{"name": "external"}]
+    data["cameras"] = [{"name": "external", "resolution": "1280x720", "encoding": "h264", "fps": 30}]
+    data["platform_id"] = "rig-01"
+    data["robot_name"] = "test_arm"
+    data["gripper_name"] = "test_gripper"
+    data["is_biarm"] = False
+    data["uses_mobile_base"] = False
+    data["control_freq"] = 100
+    data["action_space"] = ["joint_position", "gripper_binary"]
+    data["action_joint_names"] = ["j0", "j1", "j2", "j3", "j4", "j5"]
+    data["policy"] = "teleop_spacemouse"
+    data["end_effector"] = {"type": "gripper", "actuated_dof": 1, "command_modality": "position"}
     path.write_text(yaml.safe_dump(data))
     return load_profile(samples_root)
 
@@ -70,7 +85,7 @@ def test_annotate_then_validate_via_gui_visible_in_cli_list(samples_root):
     resp = client.post(
         "/api/episodes/ep1/annotate",
         json={
-            "attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 4.0,
+            "attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 1.5, "operator_name": "Op", "annotator_name": "Ann",
             "n_attempts": 1, "n_regrasps": 0, "strategy": "prehensile",
         },
     )
@@ -97,7 +112,7 @@ def test_annotate_via_cli_visible_via_gui_api(samples_root):
     make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile)
     annotate_episode(
         samples_root, "ep1",
-        {"attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 7.0,
+        {"attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 1.5, "operator_name": "Op", "annotator_name": "Ann",
          "n_attempts": 1, "n_regrasps": 0, "strategy": "prehensile"},
     )
     client = _client(samples_root)
@@ -161,11 +176,11 @@ def test_update_profile_via_api_completes_it(samples_root):
     client.post("/api/profile")
 
     payload = {
-        "manipulator": {"model": "TestArm", "dof": 6, "joint_names": ["j1", "j2"]},
+        "manipulator": {"model": "TestArm", "dof": 6, "joint_names": [f"j{i}" for i in range(6)]},
         "end_effector": {"type": "gripper", "actuated_dof": 1, "command_modality": "position"},
         "low_level": {"mode": "stock", "controller_type": "pid", "rate_hz": 500, "gains": None},
         "control_mode": "joint_position",
-        "policy": None,
+        "policy": "teleop_spacemouse",
         "cameras": [{"name": "external", "resolution": "1280x720", "encoding": "h264", "fps": 30}],
         "board_mounting": "horizontal",
         "hiveboard_version": "v2",
@@ -178,6 +193,7 @@ def test_update_profile_via_api_completes_it(samples_root):
         },
         "units_and_frames": {},
         "platform_id": "rig-01",
+        "robot_name": "TestArm", "gripper_name": "g", "is_biarm": False, "uses_mobile_base": False, "control_freq": 100, "action_space": ["joint_position", "gripper_binary"], "action_joint_names": ["j0", "j1", "j2", "j3", "j4", "j5"],
     }
     resp = client.put("/api/profile", json=payload)
     assert resp.status_code == 200
@@ -296,7 +312,7 @@ def test_severity_forbidden_on_success(samples_root):
     resp = client.post(
         "/api/episodes/ep1/annotate",
         json={
-            "attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 3.0,
+            "attachment_id": "valve_ball", "outcome": "success", "completion_time_s": 1.5, "operator_name": "Op", "annotator_name": "Ann",
             "severity": "minor", "strategy": "prehensile",
         },
     )
@@ -457,3 +473,481 @@ def test_server_binds_localhost_only():
     source = inspect.getsource(serve)
     assert '"127.0.0.1"' in source
     assert "--host" not in source
+
+
+def test_web_interface_navigation_bar(samples_root):
+    client = _client(samples_root)
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    assert "◀ Prev" in html
+    assert "No episode selected" in html
+    assert "Next ▶" in html
+    assert "Next unannotated ▶▶" in html
+    assert 'id="prevBtn"' in html
+    assert 'id="nextBtn"' in html
+    assert 'id="nextUnannotatedBtn"' in html
+    assert 'id="sessionH5Name"' in html
+
+
+def test_web_interface_failure_help_modal(samples_root):
+    client = _client(samples_root)
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'id="failureHelpOverlay"' in html
+    assert "Failure Causes Guide" in html
+    assert "Cause" in html and "Use when" in html and "Discriminator" in html
+    for cause in [
+        "grasp_geometry",
+        "kinematic_limit",
+        "perception",
+        "slip",
+        "force_limit",
+        "control_precision",
+        "other",
+    ]:
+        assert f"<code>{cause}</code>" in html
+
+    js_resp = client.get("/app.js")
+    assert js_resp.status_code == 200
+    assert "failureHelpBtn" in js_resp.text
+    assert "openFailureHelpOverlay" in js_resp.text
+
+
+def test_web_interface_select_task_help_link(samples_root):
+    client = _client(samples_root)
+    resp = client.get("/")
+    assert resp.status_code == 200
+    html = resp.text
+    assert 'id="taskOverlay"' in html
+    assert "https://hiveboard-bench.github.io/hivedocs/benchmark/tasks" in html
+    assert "Select task" in html
+
+
+def test_web_interface_strategy_tooltips(samples_root):
+    client = _client(samples_root)
+    resp = client.get("/app.js")
+    assert resp.status_code == 200
+    js = resp.text
+    assert "STRATEGY_MEANINGS" in js
+    assert "prehensile" in js and "non_prehensile" in js
+    assert 'segmentedControlHtml("strategy", STRATEGIES, ann.strategy, STRATEGY_MEANINGS)' in js
+
+
+def test_web_interface_auto_advance_and_hide_annotated(samples_root):
+    client = _client(samples_root)
+    html = client.get("/").text
+    assert 'id="hideAnnotatedChk"' in html
+
+    js = client.get("/app.js").text
+    assert 'id="autoAdvanceChk"' in js
+    assert "datahive-hide-annotated" in js
+    assert "datahive-auto-advance" in js
+    assert "isAutoAdvanceEnabled" in js
+
+
+def test_web_interface_unsaved_changes_and_autofill(samples_root):
+    client = _client(samples_root)
+    js = client.get("/app.js").text
+    assert 'id="dirtyIndicator"' in js
+    assert "isDirty" in js
+    assert "confirmDiscardIfDirty" in js
+    assert "beforeunload" in js
+    assert "datahive-last-operator" in js
+    assert "datahive-last-annotator" in js
+
+
+def test_web_interface_task_banner_and_video_controls(samples_root):
+    client = _client(samples_root)
+    js = client.get("/app.js").text
+    assert 'id="taskInstructionCard"' in js
+    assert 'id="taskInstructionText"' in js
+    assert 'id="toggleVideosBtn"' in js
+    assert 'id="stepBackBtn"' in js
+    assert 'id="stepForwardBtn"' in js
+    assert 'id="failureTimeField"' in js
+    assert 'id="markCurrentTimeBtn"' in js
+    assert "stepVideos" in js
+    assert "toggleVideosPlay" in js
+    assert "isSyncingVideo" in js
+    assert "failure_time" in js
+
+
+def test_web_interface_last_completed_stage_under_strategy(samples_root):
+    client = _client(samples_root)
+    js = client.get("/app.js").text
+    assert 'fieldLabel("Last completed stage")' in js
+    assert "0 — No stage completed" in js
+
+    # Verify stageField is placed after Strategy in the template
+    strat_pos = js.find('segmentedControlHtml("strategy"')
+    stage_pos = js.find('id="stageField"')
+    assert strat_pos != -1 and stage_pos != -1
+    assert stage_pos > strat_pos, "stageField must be below strategy"
+    assert '<label id="stageField" class="full" style="${composed ? "" : "display:none"}">' in js
+    assert '<select name="stage_reached"' in js
+
+    # Verify registry returns stages for all 4 composed-assembly tasks
+    resp = client.get("/api/attachments")
+    assert resp.status_code == 200
+    att = resp.json()
+    assert len(att) == 13
+    assert att["button"]["stages"] == ["Open cover", "Press button"]
+    assert att["lock"]["stages"] == ["Grasp key", "Insert key vertically", "Rotate to unlock"]
+    assert att["drawer"]["stages"] == ["Grasp handle", "Pull open", "Push closed"]
+    assert att["shock_absorber"]["stages"] == ["Grasp pin", "Align with hole", "Insert fully"]
+    assert att["valve_ball"]["composed_assembly"] is False
+    assert att["valve_ball"]["stages"] is None
+    assert att["peg_insertion"]["composed_assembly"] is False
+    assert att["peg_insertion"]["stages"] is None
+
+
+def test_web_interface_hide_annotated_below_filter(samples_root):
+    client = _client(samples_root)
+    html = client.get("/").text
+    assert '<div class="filter-options-row">' in html
+    filter_row_pos = html.find('class="filter-row"')
+    options_row_pos = html.find('class="filter-options-row"')
+    assert filter_row_pos != -1 and options_row_pos != -1
+    assert options_row_pos > filter_row_pos, "Hide annotated row must be below filter select row"
+    assert 'id="hideAnnotatedChk"' in html[options_row_pos:]
+
+
+def test_web_interface_profile_help_link(samples_root):
+    client = _client(samples_root)
+    html = client.get("/").text
+    profile_pos = html.find('id="profileOverlay"')
+    assert profile_pos != -1
+    profile_html = html[profile_pos:html.find('</div>', profile_pos + 500)]
+    assert "https://hiveboard-bench.github.io/hivedocs/" in profile_html
+    assert "Help" in profile_html
+
+    js = client.get("/app.js").text
+    assert "https://hiveboard-bench.github.io/hivedocs/" in js
+
+
+def test_web_interface_operator_annotator_required(samples_root):
+    client = _client(samples_root)
+    js = client.get("/app.js").text
+    assert 'fieldLabel("Operator name")' in js
+    assert 'fieldLabel("Annotator name")' in js
+    assert 'name="operator_name"' in js and "required" in js
+    assert 'name="annotator_name"' in js and "required" in js
+    assert "Operator name is required." in js
+    assert "Annotator name is required." in js
+
+
+def test_web_interface_form_options_row_above_actions(samples_root):
+    client = _client(samples_root)
+    js = client.get("/app.js").text
+    options_row_pos = js.find('class="form-options-row"')
+    actions_pos = js.find('<div class="actions">', options_row_pos)
+    assert options_row_pos != -1 and actions_pos != -1
+    assert options_row_pos < actions_pos, "form-options-row must be above actions buttons"
+    assert 'id="autoAdvanceChk"' in js[options_row_pos:actions_pos]
+    assert 'id="dirtyIndicator"' in js[options_row_pos:actions_pos]
+
+
+def test_web_interface_stats_blue_and_stage_dropdown_full_width(samples_root):
+    client = _client(samples_root)
+    css = client.get("/style.css").text
+    assert ".stat-value {" in css
+    assert "color: var(--accent)" in css
+    assert "#stageFieldBody select {" in css
+    assert "width: 100%" in css
+    assert "#stageField {" in css and "font-weight: 400" in css
+    assert "#notesField {" in css and "font-weight: 400" in css
+
+
+def test_api_statistics_empty(samples_root):
+    client = _client(samples_root)
+    resp = client.get("/api/statistics")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["summary"]["total_trials"] == 0
+    assert data["summary"]["successful_trials"] == 0
+    assert data["summary"]["conditions_tested"] == 0
+    assert data["summary"]["conditions_total"] == 13
+    assert data["summary"]["target_trials_per_condition"] == 5
+    assert data["summary"]["total_target_trials"] == 65
+
+    assert data["readiness"]["is_complete"] is False
+    assert data["readiness"]["status_class"] == "incomplete"
+    check_labels = [c["label"] for c in data["readiness"]["checks"]]
+    assert "Experimental setup recorded" in check_labels
+    assert "All 13 conditions recorded" in check_labels
+    assert "5 trials recorded for every condition" in check_labels
+    assert "Trial entries valid" in check_labels
+
+    assert len(data["conditions"]) == 13
+    cond_ids = [c["id"] for c in data["conditions"]]
+    assert "valve_ball" in cond_ids
+    assert "button" in cond_ids
+    assert "drawer" in cond_ids
+    for c in data["conditions"]:
+        assert c["count"] == 0
+        assert c["target"] == 5
+        assert c["complete"] is False
+
+
+def test_api_statistics_with_data(samples_root):
+    profile = _fill_profile(samples_root)
+    client = _client(samples_root)
+
+    # Add 5 trials for valve_ball (all success)
+    for i in range(5):
+        ep_id = f"ep_vb_{i}"
+        make_episode(samples_root, "sess1", ep_id, trial_id=f"t_vb_{i}", profile=profile)
+        write_valid_annotation(
+            samples_root, "sess1", f"t_vb_{i}",
+            outcome="success", attachment_id="valve_ball", completion_time_s=1.5,
+        )
+
+    # Add 2 trials for button (1 fail, 1 success)
+    for i in range(2):
+        ep_id = f"ep_btn_{i}"
+        make_episode(samples_root, "sess1", ep_id, trial_id=f"t_btn_{i}", profile=profile)
+        outcome = "success" if i == 0 else "fail"
+        write_valid_annotation(
+            samples_root, "sess1", f"t_btn_{i}",
+            outcome=outcome, attachment_id="button",
+            stage_reached=2 if outcome == "success" else 1,
+            composed_assembly=True,
+        )
+
+    resp = client.get("/api/statistics")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["summary"]["total_trials"] == 7
+    assert data["summary"]["successful_trials"] == 6
+    assert data["summary"]["conditions_tested"] == 2
+    assert data["summary"]["conditions_total"] == 13
+
+    cond_map = {c["id"]: c for c in data["conditions"]}
+    assert cond_map["valve_ball"]["count"] == 5
+    assert cond_map["valve_ball"]["complete"] is True
+    assert cond_map["button"]["count"] == 2
+    assert cond_map["button"]["complete"] is False
+
+    checks = {c["label"]: c["passed"] for c in data["readiness"]["checks"]}
+    assert checks["Experimental setup recorded"] is True
+    assert checks["All 13 conditions recorded"] is False
+    assert checks["5 trials recorded for every condition"] is False
+    assert checks["Trial entries valid"] is True
+
+
+def test_web_interface_statistics_modal_and_layout(samples_root):
+    client = _client(samples_root)
+    html = client.get("/").text
+
+    # Statistics button next to profileBtn
+    profile_btn_pos = html.find('id="profileBtn"')
+    stats_btn_pos = html.find('id="statsBtn"')
+    sync_btn_pos = html.find('id="syncBtn"')
+    assert profile_btn_pos != -1 and stats_btn_pos != -1 and sync_btn_pos != -1
+    assert profile_btn_pos < stats_btn_pos < sync_btn_pos
+    assert "Statistics" in html[stats_btn_pos:sync_btn_pos]
+
+    # Modal overlay
+    stats_overlay_pos = html.find('id="statsOverlay"')
+    assert stats_overlay_pos != -1
+    stats_html = html[stats_overlay_pos:html.find('</div>\n  </div>', stats_overlay_pos) + 20]
+    assert 'class="overlay-panel stats-overlay-panel"' in stats_html
+    assert 'id="statsCloseBtn"' in stats_html
+    assert 'id="statsBody"' in stats_html
+    assert "https://hiveboard-bench.github.io/hivedocs/benchmark/evaluation-runner" in stats_html
+
+    # JS application logic
+    js = client.get("/app.js").text
+    assert "openStatsOverlay" in js
+    assert "renderStats" in js
+    assert 'api("/api/statistics")' in js
+    assert "review-stats" in js
+    assert "readiness-panel" in js
+    assert "condition-progress" in js
+    assert "validation-list" in js
+    assert "Check trial records" in js
+    assert "Trial records complete" in js
+    assert "Submission package" in js
+
+    # CSS styles matching HiveBoard Evaluation Runner layout
+    css = client.get("/style.css").text
+    assert ".review-stats" in css
+    assert ".readiness-panel" in css
+    assert ".readiness-heading" in css
+    assert ".condition-progress" in css
+    assert ".validation-list" in css
+    assert ".eyebrow" in css
+    assert ".stats-overlay-panel" in css
+
+
+def test_robot_profile_redesigned_ui(samples_root):
+    """Verifies that Robot Profile UI features icons, section subtitles,
+    segmented controls for <= 3 options (instead of select dropdowns),
+    required asterisks on mandatory fields, and proper CSS styling."""
+    client = _client(samples_root)
+
+    # HTML references cache-busted asset URLs
+    html = client.get("/").text
+    assert re.search(r'<link rel="stylesheet" href="/style\.css\?v=\d+">', html)
+    assert re.search(r'<script src="/app\.js\?v=\d+"></script>', html)
+
+    # JS profile logic
+    js = client.get("/app.js").text
+    # Segmented controls instead of dropdowns for <= 3 options
+    assert 'segmentedControlHtml("end_effector.type"' in js
+    assert 'segmentedControlHtml("end_effector.command_modality"' in js
+    assert 'segmentedControlHtml("low_level.mode"' in js
+    assert 'segmentedControlHtml("board_mounting"' in js
+    assert '<select name="end_effector.type">' not in js
+    assert '<select name="end_effector.command_modality">' not in js
+    assert '<select name="low_level.mode"' not in js
+    assert '<select name="board_mounting">' not in js
+
+    # Required asterisks via fieldLabel on mandatory fields
+    assert "Robot state joint names (comma-separated, in order)" in js
+    assert '${fieldLabel("Mode")}' in js
+    assert '${fieldLabel("Name")}' in js
+    # Resolution, fps and encoding are detected from the videos, never typed.
+    for gone in ('data-field="resolution"', 'data-field="fps"', 'data-field="encoding"'):
+        assert gone not in js
+
+    # Icons, badges, and section descriptions
+    assert "card-header-with-icon" in js
+    assert "section-icon-wrap" in js
+    assert "card-title-row" in js
+    assert "section-desc" in js
+    assert "camera-title-badge" in js
+    assert "wireSegmentedControls(form)" in js
+    assert "allowDeselect" in js
+
+    # CSS styles
+    css = client.get("/style.css").text
+    assert ".card-header-with-icon" in css
+    assert ".section-icon-wrap" in css
+    assert ".card-title-row" in css
+    assert ".section-desc" in css
+    assert ".profile-card" in css
+    assert ".camera-title-badge" in css
+    assert ".required-mark" in css
+
+
+
+def test_statistics_are_split_by_plan_and_trial_ids_do_not_collide(samples_root):
+    from datahive import runner
+    a = runner.create_session(samples_root, lab_id="l", platform_id="p", operator_name="Ana", date="2026-09-18",
+                              attachment_ids=["valve_ball"], per_task=2, randomize=False)["session_id"]
+    b = runner.create_session(samples_root, lab_id="l", platform_id="p", operator_name="Bruno", date="2026-09-19",
+                              attachment_ids=["valve_ball", "lock"], per_task=1, randomize=False)["session_id"]
+    ok = {"outcome": "success", "completion_time_s": 5, "strategy": "prehensile"}
+    runner.record_trial(samples_root, a, "1", ok)                               # trial id 1 in both plans
+    runner.record_trial(samples_root, b, "1", ok)
+    runner.record_trial(samples_root, b, "2", {**ok, "stage_reached": 3})
+    data = _client(samples_root).get("/api/statistics").json()
+    assert data["summary"]["total_trials"] == 3                                 # not merged by trial id
+    by = {p["session_id"]: p for p in data["plans"]}
+    assert [p["session_id"] for p in data["plans"]] == [b, a]                   # most recent first
+    assert by[a]["summary"]["total_trials"] == 1 and by[a]["summary"]["total_target_trials"] == 2
+    assert by[b]["summary"]["total_trials"] == 2 and by[b]["summary"]["conditions_total"] == 2
+    assert by[b]["operator_name"] == "Bruno" and by[b]["mode"] == "manual" and by[b]["has_plan"] is True
+    assert [c["id"] for c in by[b]["conditions"]] == ["valve_ball", "lock"]
+    assert {c["id"]: c["target"] for c in by[a]["conditions"]} == {"valve_ball": 2}
+    labels = [c["label"] for c in by[b]["readiness"]["checks"]]
+    assert "All 2 conditions of this plan recorded" in labels and "All 2 planned trials recorded" in labels
+    assert by[a]["readiness"]["is_complete"] is False and all(t["session_id"] == a for t in by[a]["trials"])
+
+
+def test_statistics_view_has_plan_tabs(samples_root):
+    js = _client(samples_root).get("/app.js").text
+    for marker in ("stats-plan-tab", "let statsPlan", "renderStatsView", "All plans", "showPlanColumn"):
+        assert marker in js
+    assert ".stats-plan-tab.active" in _client(samples_root).get("/style.css").text
+
+
+def test_statistics_panel_refreshes_while_open(samples_root):
+    js = _client(samples_root).get("/app.js").text
+    body = js[js.index("async function refreshStats"):js.index("window.openStatsOverlay")]
+    for marker in ("setInterval", "2500", "key === statsLastKey", "scroller.scrollTop = top", "statsOverlay.classList.contains(\"hidden\")"):
+        assert marker in body
+
+
+def test_deleting_an_episode_removes_its_trial_row_and_it_leaves_the_statistics(samples_root):
+    profile = _fill_profile(samples_root)
+    make_episode(samples_root, "session_001", "ep1", trial_id="t1", profile=profile)
+    annotate_episode(samples_root, "ep1", {"attachment_id": "valve_ball", "outcome": "success", "strategy": "prehensile",
+                                           "operator_name": "Op", "annotator_name": "Ann"}, validate_after=False)
+    client = _client(samples_root)
+    assert client.get("/api/statistics").json()["summary"]["total_trials"] == 1
+    assert read_rows(trials_csv_path(samples_root, "session_001"))
+    assert client.delete("/api/episodes/ep1?remote=false").status_code == 200
+    assert read_rows(trials_csv_path(samples_root, "session_001")) == []
+    stats = client.get("/api/statistics").json()
+    assert stats["summary"]["total_trials"] == 0 and stats["plans"] == []
+
+
+def test_statistics_ignore_leftover_rows_of_a_session_without_episodes_or_plan(samples_root):
+    from datahive.trials import upsert_row
+    from datahive.schema import TrialAnnotation
+    ann = TrialAnnotation.model_validate(dict(trial_id="old", lab_id="l", platform_id="p", attachment_id="valve_ball",
+                                              date="2026-01-01", outcome="success", completion_time_s=3, strategy="prehensile"))
+    (samples_root / "session_001").mkdir()
+    upsert_row(trials_csv_path(samples_root, "session_001"), ann)               # a row whose episode was removed by hand
+    stats = _client(samples_root).get("/api/statistics").json()
+    assert stats["summary"]["total_trials"] == 0 and stats["plans"] == []
+
+
+def test_stage_select_is_required_only_for_tasks_with_stages(samples_root):
+    js = _client(samples_root).get("/app.js").text
+    body = js[js.index("function stageFieldHtml"):js.index("function completionSourceHtml") if js.index("function completionSourceHtml") > js.index("function stageFieldHtml") else None]
+    assert 'needed ? "required" : "disabled"' in js and "isComposedTask(info, taskId)" in js
+    assert 'form.addEventListener("invalid"' in js and "needs a value." in js
+
+
+def test_annotation_form_only_sends_the_fields_that_apply_to_the_outcome(samples_root):
+    js = _client(samples_root).get("/app.js").text
+    body = js[js.index("function collectAnnotationPayload"):js.index('form.addEventListener("invalid"')]
+    for marker in ('payload.outcome === "success"', "payload.failure_cause = null;", "payload.severity = null;", "payload.completion_time_s = null;"):
+        assert marker in body
+
+
+def test_dark_theme_has_layered_surfaces_and_readable_buttons(samples_root):
+    css = _client(samples_root).get("/style.css").text
+    dark = css[css.index(':root[data-theme="dark"] {'):css.index("* { box-sizing")]
+    for token in ("--canvas: #0d1117", "--bg: #161b22", "--input-bg: #0d1117", "--accent-solid: #2c5aa0", "--seg-active-bg: #2c5aa0", "--danger: #f85149"):
+        assert token in dark, token
+    assert "body { background: var(--canvas); }" in css
+    assert ".card, .rn-card" in css and "background-color: var(--bg)" in css
+    assert "button.rn-cta, button.rn-cta:hover" in css and "background: var(--accent-solid)" in css
+    assert ".badge.validated { color: var(--accent);" in css
+
+
+def test_validate_button_shows_the_episode_state(samples_root):
+    js = _client(samples_root).get("/app.js").text
+    for marker in ('class="btn-icon btn-validate ${validateState}"', "function validateStateOf", "is-valid", "is-invalid", "is-busy", 'id="vdLabel"', 'setState(result.ok ? "is-valid" : "is-invalid")'):
+        assert marker in js
+    assert ".btn-validate.is-valid" in _client(samples_root).get("/style.css").text
+    # Delete on the left, Save as the main (solid) action.
+    actions = js[js.index('<div class="actions">\n          <button type="button" id="deleteBtn"'):js.index('id="statusMsg"')]
+    assert actions.index('id="deleteBtn"') < actions.index('id="validateBtn"') < actions.index('class="btn-icon solid"') < actions.index('id="uploadBtn"')
+
+
+def test_runner_always_opens_on_the_plans_list_unless_a_trial_is_running(samples_root):
+    js = _client(samples_root).get("/runner.js").text
+    body = js[js.index('window.addEventListener("viewchange", async (e) => {\n  if (e.detail.view !== "runner")'):]
+    body = body[:body.index("try {")]
+    assert 'rn.step = "setup"' in body and 'rn.session = null' in body
+    assert '["countdown", "running"].includes(rn.timer.state)' in body and '["pending", "running"].includes(auto.state.status)' in body
+
+
+def test_validate_button_has_the_same_shape_as_the_other_buttons(samples_root):
+    client = _client(samples_root)
+    js, css = client.get("/app.js").text, client.get("/style.css").text
+    assert 'class="btn-icon btn-validate ${validateState}"' in js and "vd-icon" not in js
+    assert "border-radius: 999px" not in css[css.index(".btn-validate.is-valid"):css.index("@keyframes vdspin")]
+
+
+def test_dark_theme_blue_is_calm_and_the_send_button_stacks_its_hint(samples_root):
+    css = _client(samples_root).get("/style.css").text
+    assert "#1f6feb" not in css                                          # the vivid blue is gone everywhere
+    assert "button.rn-go.auto-send { flex-direction: column;" in css

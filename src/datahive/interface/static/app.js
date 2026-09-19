@@ -1099,7 +1099,7 @@ async function selectEpisode(episodeId) {
       <h3 class="collapsible-header collapsed" id="trajToggle">
         <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
         <span>Trajectory</span>
-        <span class="overview-summary">end-effector path · last 100 steps</span>
+        <span class="overview-summary">3D end-effector path · last 100 steps</span>
       </h3>
       <div class="collapsible-body" id="trajBody" hidden></div>
     </div>` : ""}
@@ -2514,51 +2514,165 @@ function wireTrajectory(episodeId) {
 function trajectoryRender(body, points) {
   const n = points.length;
   body.innerHTML = `
-    <div class="traj-views">
-      <figure><canvas class="traj-canvas" data-plane="xy" width="420" height="300"></canvas><figcaption>Top view (x, y)</figcaption></figure>
-      <figure><canvas class="traj-canvas" data-plane="xz" width="420" height="300"></canvas><figcaption>Side view (x, z)</figcaption></figure>
-    </div>
+    <canvas class="traj-canvas traj-3d" aria-label="3D end-effector trajectory"></canvas>
+    <div class="traj-hint">Drag to rotate · scroll to zoom · double-click to reset the view</div>
     <div class="traj-controls">
       <input type="range" id="trajSlider" min="0" max="${n - 1}" value="${n - 1}" aria-label="Trajectory position">
       <span class="traj-readout" id="trajReadout"></span>
     </div>`;
+  const cv = body.querySelector(".traj-3d");
   const slider = body.querySelector("#trajSlider");
   const readout = body.querySelector("#trajReadout");
-  const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]), zs = points.map((p) => p[2]);
-  const span = (a) => { const lo = Math.min(...a), hi = Math.max(...a); return [lo, hi - lo || 1]; };
-  const ranges = { x: span(xs), y: span(ys), z: span(zs) };
+  const ctx = cv.getContext("2d");
+  const lo = [0, 1, 2].map((k) => Math.min(...points.map((p) => p[k])));
+  const hi = [0, 1, 2].map((k) => Math.max(...points.map((p) => p[k])));
+  const mid = lo.map((v, k) => (v + hi[k]) / 2);
+  const size = Math.max(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]) || 1;
+  const norm = points.map((p) => p.map((v, k) => (v - mid[k]) / size));
+  const zFloor = (lo[2] - mid[2]) / size - 0.04;
   const css = getComputedStyle(document.documentElement);
   const color = (v, d) => css.getPropertyValue(v).trim() || d;
+  const rgba = (hex, a) => {
+    const m = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+    if (!m) return hex;
+    const v = parseInt(m[1], 16);
+    return `rgba(${v >> 16}, ${(v >> 8) & 255}, ${v & 255}, ${a})`;
+  };
 
-  function draw(end) {
-    const start = Math.max(0, end - TRAJ_WINDOW + 1);
-    body.querySelectorAll(".traj-canvas").forEach((cv) => {
-      const [a, b] = cv.dataset.plane === "xy" ? [0, 1] : [0, 2];
-      const [ka, kb] = cv.dataset.plane === "xy" ? ["x", "y"] : ["x", "z"];
-      const ctx = cv.getContext("2d");
-      const W = cv.width, H = cv.height, pad = 24;
-      const scale = Math.min((W - 2 * pad) / ranges[ka][1], (H - 2 * pad) / ranges[kb][1]);
-      const px = (p) => pad + (p[a] - ranges[ka][0]) * scale;
-      const py = (p) => H - pad - (p[b] - ranges[kb][0]) * scale;
-      ctx.clearRect(0, 0, W, H);
-      ctx.strokeStyle = color("--border", "#ccc");
-      ctx.lineWidth = 1;
+  const DEFAULT_ANGLE = { yaw: -0.6, pitch: 0.55 };
+  const view = { ...DEFAULT_ANGLE, zoom: 1, ox: 0, oy: 0 };
+  let end = n - 1;
+  let W = 0, H = 0;
+
+  function fit() {
+    const dpr = window.devicePixelRatio || 1;
+    W = cv.clientWidth || 900; H = cv.clientHeight || 420;
+    cv.width = Math.round(W * dpr); cv.height = Math.round(H * dpr);
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  function project([x, y, z]) {
+    const cy = Math.cos(view.yaw), sy = Math.sin(view.yaw);
+    const cp = Math.cos(view.pitch), sp = Math.sin(view.pitch);
+    const x1 = x * cy - y * sy, y1 = x * sy + y * cy;
+    const depth = y1 * cp + z * sp;
+    const up = z * cp - y1 * sp;
+    const persp = 1 / (1 + depth * 0.15);
+    const scale = Math.min(W, H * 1.5) * 0.5 * view.zoom * persp;
+    return [W / 2 + x1 * scale + view.ox, H / 2 - up * scale + view.oy, depth];
+  }
+  const shade = (depth) => 0.55 + 0.45 * Math.max(0, Math.min(1, 0.5 - depth * 0.6)); // nearer = stronger
+
+  function draw() {
+    ctx.clearRect(0, 0, W, H);
+    const accent = color("--accent-solid", "#2563eb"), accentSoft = color("--accent", accent);
+    const border = color("--border", "#d0d5dd"), muted = color("--muted", "#888888"), fg = color("--fg", "#222222");
+    const hex = (c) => (/^#/.test(c) ? c : "#2563eb");
+
+    // floor: soft tinted plane sized to the path's footprint, grid fading toward the edges
+    const fxs = norm.map((q) => q[0]), fys = norm.map((q) => q[1]);
+    const padF = 0.08;
+    const fx0 = Math.min(...fxs) - padF, fx1 = Math.max(...fxs) + padF, fy0 = Math.min(...fys) - padF, fy1 = Math.max(...fys) + padF;
+    const corners = [[fx0, fy0], [fx1, fy0], [fx1, fy1], [fx0, fy1]].map(([x, y]) => project([x, y, zFloor]));
+    ctx.beginPath(); corners.forEach((c, i) => (i ? ctx.lineTo(c[0], c[1]) : ctx.moveTo(c[0], c[1]))); ctx.closePath();
+    ctx.fillStyle = rgba(hex(muted), 0.07); ctx.fill();
+    ctx.lineWidth = 1;
+    const DIV = 8;
+    for (let g = 0; g <= DIV; g++) {
+      const t = g / DIV, edge = 1 - Math.abs(t - 0.5) * 0.9;
+      const gx = fx0 + (fx1 - fx0) * t, gy = fy0 + (fy1 - fy0) * t;
+      ctx.strokeStyle = rgba(hex(muted), 0.3 * edge);
       ctx.beginPath();
-      points.forEach((p, i) => (i ? ctx.lineTo(px(p), py(p)) : ctx.moveTo(px(p), py(p))));
-      ctx.globalAlpha = 0.5; ctx.stroke(); ctx.globalAlpha = 1;
-      ctx.strokeStyle = color("--accent", "#2563eb");
-      ctx.lineWidth = 2.5;
-      for (let i = start + 1; i <= end; i++) {
-        ctx.globalAlpha = 0.2 + 0.8 * ((i - start) / Math.max(1, end - start));
-        ctx.beginPath(); ctx.moveTo(px(points[i - 1]), py(points[i - 1])); ctx.lineTo(px(points[i]), py(points[i])); ctx.stroke();
-      }
-      ctx.globalAlpha = 1;
-      ctx.fillStyle = color("--accent-solid", "#2563eb");
-      ctx.beginPath(); ctx.arc(px(points[end]), py(points[end]), 5, 0, Math.PI * 2); ctx.fill();
-    });
+      const p1 = project([gx, fy0, zFloor]), p2 = project([gx, fy1, zFloor]); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]);
+      const p3 = project([fx0, gy, zFloor]), p4 = project([fx1, gy, zFloor]); ctx.moveTo(p3[0], p3[1]); ctx.lineTo(p4[0], p4[1]);
+      ctx.stroke();
+    }
+
+    // shadow of the whole path on the floor
+    ctx.lineJoin = "round"; ctx.lineCap = "butt";
+    ctx.strokeStyle = rgba(hex(fg), 0.10); ctx.lineWidth = 2; ctx.beginPath();
+    norm.forEach((p, i) => { const q = project([p[0], p[1], zFloor]); i ? ctx.lineTo(q[0], q[1]) : ctx.moveTo(q[0], q[1]); });
+    ctx.stroke();
+
+    // the whole path, thin and quiet
+    ctx.lineWidth = 1.5;
+    for (let i = 1; i < n; i++) {
+      const A = project(norm[i - 1]), B = project(norm[i]);
+      ctx.strokeStyle = rgba(hex(muted), 0.5 * shade((A[2] + B[2]) / 2));
+      ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    }
+
+    // the last 100 steps: thicker and brighter toward the current point
+    const start = Math.max(0, end - TRAJ_WINDOW + 1);
+    for (let i = start + 1; i <= end; i++) {
+      const t = (i - start) / Math.max(1, end - start);
+      const A = project(norm[i - 1]), B = project(norm[i]);
+      ctx.strokeStyle = rgba(hex(accent), (0.25 + 0.75 * t) * shade((A[2] + B[2]) / 2));
+      ctx.lineWidth = 1.5 + 3 * t;
+      ctx.beginPath(); ctx.moveTo(A[0], A[1]); ctx.lineTo(B[0], B[1]); ctx.stroke();
+    }
+
+    // start point
+    const s0 = project(norm[0]);
+    ctx.fillStyle = rgba(hex(muted), 0.9); ctx.beginPath(); ctx.arc(s0[0], s0[1], 3.5, 0, Math.PI * 2); ctx.fill();
+
+    // current point: drop line, floor shadow, halo
+    const cur = norm[end], c0 = project(cur), f0 = project([cur[0], cur[1], zFloor]);
+    ctx.setLineDash([3, 4]); ctx.strokeStyle = rgba(hex(accent), 0.55); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(c0[0], c0[1]); ctx.lineTo(f0[0], f0[1]); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = rgba(hex(fg), 0.18); ctx.beginPath(); ctx.ellipse(f0[0], f0[1], 7, 3, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = rgba(hex(accent), 0.18); ctx.beginPath(); ctx.arc(c0[0], c0[1], 12, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(c0[0], c0[1], 5.5, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = color("--bg", "#ffffff"); ctx.lineWidth = 2; ctx.stroke();
+
+    // axis gizmo in the corner (turns with the view)
+    const gx = 44, gy = H - 40, gl = 26;
+    const axes = [["x", [1, 0, 0], "#e5484d"], ["y", [0, 1, 0], "#30a46c"], ["z", [0, 0, 1], "#3e63dd"]];
+    const zero = project([0, 0, 0]);
+    axes.map(([name, d, c]) => { const p = project(d.map((v) => v * 0.1)); return { name, c, dx: (p[0] - zero[0]) / Math.hypot(p[0] - zero[0], p[1] - zero[1], 1e-6) * gl * Math.min(1, Math.hypot(p[0] - zero[0], p[1] - zero[1]) / (0.1 * Math.min(W, H * 1.5) * 0.62)), dy: (p[1] - zero[1]) / Math.hypot(p[0] - zero[0], p[1] - zero[1], 1e-6) * gl * Math.min(1, Math.hypot(p[0] - zero[0], p[1] - zero[1]) / (0.1 * Math.min(W, H * 1.5) * 0.62)), depth: p[2] - zero[2] }; })
+      .sort((a, b) => b.depth - a.depth)
+      .forEach((a) => {
+        ctx.strokeStyle = a.c; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(gx, gy); ctx.lineTo(gx + a.dx, gy + a.dy); ctx.stroke();
+        ctx.fillStyle = a.c; ctx.font = "600 12px sans-serif"; ctx.textAlign = "center"; ctx.textBaseline = "middle";
+        ctx.fillText(a.name, gx + a.dx * 1.35, gy + a.dy * 1.35);
+      });
+
     const p = points[end];
     readout.textContent = `step ${end + 1} / ${n}  ·  x ${p[0].toFixed(3)}  y ${p[1].toFixed(3)}  z ${p[2].toFixed(3)}`;
   }
-  slider.addEventListener("input", () => draw(Number(slider.value)));
-  draw(n - 1);
+
+  function frame() {
+    Object.assign(view, DEFAULT_ANGLE, { zoom: 1, ox: 0, oy: 0 });
+    const fxs = norm.map((q) => q[0]), fys = norm.map((q) => q[1]);
+    const fl = [Math.min(...fxs) - 0.08, Math.max(...fxs) + 0.08, Math.min(...fys) - 0.08, Math.max(...fys) + 0.08];
+    const extent = [...norm, [fl[0], fl[2], zFloor], [fl[1], fl[2], zFloor], [fl[1], fl[3], zFloor], [fl[0], fl[3], zFloor]];
+    const pts = extent.map(project);
+    const x0 = Math.min(...pts.map((q) => q[0])), x1 = Math.max(...pts.map((q) => q[0]));
+    const y0 = Math.min(...pts.map((q) => q[1])), y1 = Math.max(...pts.map((q) => q[1]));
+    view.zoom = Math.max(0.4, Math.min(4, 0.9 * Math.min(W / ((x1 - x0) || 1), H / ((y1 - y0) || 1))));
+    const framed = extent.map(project);
+    const fx0 = Math.min(...framed.map((q) => q[0])), fx1 = Math.max(...framed.map((q) => q[0]));
+    const fy0 = Math.min(...framed.map((q) => q[1])), fy1 = Math.max(...framed.map((q) => q[1]));
+    view.ox = W / 2 - (fx0 + fx1) / 2;
+    view.oy = H / 2 - (fy0 + fy1) / 2;
+  }
+
+  fit();
+  frame();
+  window.addEventListener("resize", () => { if (cv.isConnected) { fit(); frame(); draw(); } });
+
+  let drag = null;
+  cv.addEventListener("pointerdown", (e) => { drag = { x: e.clientX, y: e.clientY }; cv.setPointerCapture(e.pointerId); });
+  cv.addEventListener("pointerup", () => { drag = null; });
+  cv.addEventListener("pointermove", (e) => {
+    if (!drag) return;
+    view.yaw += (e.clientX - drag.x) * 0.01;
+    view.pitch = Math.max(-1.5, Math.min(1.5, view.pitch + (e.clientY - drag.y) * 0.01));
+    drag = { x: e.clientX, y: e.clientY };
+    draw();
+  });
+  cv.addEventListener("wheel", (e) => { e.preventDefault(); view.zoom = Math.max(0.4, Math.min(4, view.zoom * (e.deltaY < 0 ? 1.1 : 0.9))); draw(); }, { passive: false });
+  cv.addEventListener("dblclick", () => { frame(); draw(); });
+  slider.addEventListener("input", () => { end = Number(slider.value); draw(); });
+  draw();
 }

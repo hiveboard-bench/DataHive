@@ -1817,3 +1817,5 @@ button.rn-go.auto-send .rn-btn-main svg { width: 0.95rem; height: 0.95rem; }
 .traj-controls { display: flex; align-items: center; gap: 1rem; margin-top: 0.8rem; flex-wrap: wrap; }
 .traj-controls input[type=range] { flex: 1; min-width: 200px; accent-color: var(--accent-solid); }
 .traj-readout { font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.traj-3d { width: 100%; height: 440px; background: radial-gradient(ellipse at 50% 40%, var(--bg), var(--soft)); cursor: grab; touch-action: none; display: block; } .traj-3d:active { cursor: grabbing; }
+.traj-hint { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 0.3rem; }

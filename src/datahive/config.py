@@ -86,7 +86,6 @@ def _is_inside_git_repo(path: Path) -> Path | None:
     """Walk upward from path looking for a .git directory. Returns the repo
     root if found, else None. path need not exist yet."""
     current = path.resolve()
-    # Walk from the target's parent upward (the file itself won't exist yet).
     for ancestor in [current, *current.parents]:
         if (ancestor / ".git").exists():
             return ancestor

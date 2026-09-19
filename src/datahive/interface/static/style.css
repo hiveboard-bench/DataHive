@@ -1808,3 +1808,12 @@ button.rn-go.auto-send .rn-btn-main svg { width: 0.95rem; height: 0.95rem; }
 .guide-cta.primary-cta { background: var(--accent-solid); border-color: var(--accent-solid); color: #fff; }
 @media (max-width: 640px) { .guide-step { flex-wrap: wrap; } .guide-cta { width: 100%; } }
 .guide-code { display: inline-block; margin: 0 0 0.45rem; padding: 0.25rem 0.7rem; border-radius: 8px; background: var(--soft); border: 1px solid var(--border); font-size: 0.85rem; user-select: all; }
+
+/* ---- Trajectory viewer ---- */
+.traj-views { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; }
+.traj-views figure { margin: 0; text-align: center; }
+.traj-canvas { width: 100%; height: auto; background: var(--soft); border: 1px solid var(--border); border-radius: 10px; }
+.traj-views figcaption { font-size: 0.78rem; color: var(--muted); margin-top: 0.3rem; }
+.traj-controls { display: flex; align-items: center; gap: 1rem; margin-top: 0.8rem; flex-wrap: wrap; }
+.traj-controls input[type=range] { flex: 1; min-width: 200px; accent-color: var(--accent-solid); }
+.traj-readout { font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; }

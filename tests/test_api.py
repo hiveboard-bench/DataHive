@@ -951,3 +951,16 @@ def test_dark_theme_blue_is_calm_and_the_send_button_stacks_its_hint(samples_roo
     css = _client(samples_root).get("/style.css").text
     assert "#1f6feb" not in css                                          # the vivid blue is gone everywhere
     assert "button.rn-go.auto-send { flex-direction: column;" in css
+
+
+def test_cartesian_path_only_for_cartesian_position(samples_root):
+    profile = _fill_profile(samples_root)
+    make_episode(samples_root, "sess1", "ep1", trial_id="t1", profile=profile, n_points=50)
+    client = _client(samples_root)
+    assert client.get("/api/episodes/ep1/cartesian-path").json() == {"points": [], "n": 0}
+
+    import dataclasses
+    profile = dataclasses.replace(profile, action_space=["cartesian_position", "gripper_binary"])
+    make_episode(samples_root, "sess1", "ep2", trial_id="t2", profile=profile, n_points=50)
+    data = client.get("/api/episodes/ep2/cartesian-path").json()
+    assert data["n"] == 50 and len(data["points"][0]) == 3

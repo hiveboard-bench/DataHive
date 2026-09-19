@@ -1094,6 +1094,16 @@ async function selectEpisode(episodeId) {
       </div>
     </div>
 
+    ${(data.header.action_space || []).includes("cartesian_position") ? `
+    <div class="card">
+      <h3 class="collapsible-header collapsed" id="trajToggle">
+        <svg class="chevron" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        <span>Trajectory</span>
+        <span class="overview-summary">end-effector path · last 100 steps</span>
+      </h3>
+      <div class="collapsible-body" id="trajBody" hidden></div>
+    </div>` : ""}
+
     <div class="detail-split">
       <div class="pane camera-pane">
         <div class="pane-header">
@@ -1259,6 +1269,7 @@ async function selectEpisode(episodeId) {
     overviewToggle.classList.toggle("collapsed", nowHidden);
   });
   overviewToggle.classList.add("collapsed"); // starts minimized
+  wireTrajectory(episodeId);
 
   const videos = Array.from(document.querySelectorAll(".camera-grid video"));
   currentVideoElements = videos;
@@ -2472,3 +2483,82 @@ refreshList();
 refreshHubStatus();
 renderListStats();
 updateNavButtons();
+
+
+// --- Trajectory viewer (cartesian_position actions): last 100 steps, scrub with a slider ---
+
+const TRAJ_WINDOW = 100;
+
+function wireTrajectory(episodeId) {
+  const toggle = document.getElementById("trajToggle");
+  const body = document.getElementById("trajBody");
+  if (!toggle || !body) return;
+  let loaded = false;
+  toggle.addEventListener("click", async () => {
+    const nowHidden = !body.hidden;
+    body.hidden = nowHidden;
+    toggle.classList.toggle("collapsed", nowHidden);
+    if (nowHidden || loaded) return;
+    loaded = true;
+    body.innerHTML = '<p class="muted">Loading&hellip;</p>';
+    try {
+      const { points } = await api(`/api/episodes/${encodeURIComponent(episodeId)}/cartesian-path`);
+      if (!points.length) { body.innerHTML = '<p class="muted">No cartesian_position data in this episode.</p>'; return; }
+      trajectoryRender(body, points);
+    } catch (e) {
+      body.innerHTML = `<p class="muted">Could not load the trajectory: ${escapeHtml(e.message || e)}</p>`;
+    }
+  });
+}
+
+function trajectoryRender(body, points) {
+  const n = points.length;
+  body.innerHTML = `
+    <div class="traj-views">
+      <figure><canvas class="traj-canvas" data-plane="xy" width="420" height="300"></canvas><figcaption>Top view (x, y)</figcaption></figure>
+      <figure><canvas class="traj-canvas" data-plane="xz" width="420" height="300"></canvas><figcaption>Side view (x, z)</figcaption></figure>
+    </div>
+    <div class="traj-controls">
+      <input type="range" id="trajSlider" min="0" max="${n - 1}" value="${n - 1}" aria-label="Trajectory position">
+      <span class="traj-readout" id="trajReadout"></span>
+    </div>`;
+  const slider = body.querySelector("#trajSlider");
+  const readout = body.querySelector("#trajReadout");
+  const xs = points.map((p) => p[0]), ys = points.map((p) => p[1]), zs = points.map((p) => p[2]);
+  const span = (a) => { const lo = Math.min(...a), hi = Math.max(...a); return [lo, hi - lo || 1]; };
+  const ranges = { x: span(xs), y: span(ys), z: span(zs) };
+  const css = getComputedStyle(document.documentElement);
+  const color = (v, d) => css.getPropertyValue(v).trim() || d;
+
+  function draw(end) {
+    const start = Math.max(0, end - TRAJ_WINDOW + 1);
+    body.querySelectorAll(".traj-canvas").forEach((cv) => {
+      const [a, b] = cv.dataset.plane === "xy" ? [0, 1] : [0, 2];
+      const [ka, kb] = cv.dataset.plane === "xy" ? ["x", "y"] : ["x", "z"];
+      const ctx = cv.getContext("2d");
+      const W = cv.width, H = cv.height, pad = 24;
+      const scale = Math.min((W - 2 * pad) / ranges[ka][1], (H - 2 * pad) / ranges[kb][1]);
+      const px = (p) => pad + (p[a] - ranges[ka][0]) * scale;
+      const py = (p) => H - pad - (p[b] - ranges[kb][0]) * scale;
+      ctx.clearRect(0, 0, W, H);
+      ctx.strokeStyle = color("--border", "#ccc");
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      points.forEach((p, i) => (i ? ctx.lineTo(px(p), py(p)) : ctx.moveTo(px(p), py(p))));
+      ctx.globalAlpha = 0.5; ctx.stroke(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = color("--accent", "#2563eb");
+      ctx.lineWidth = 2.5;
+      for (let i = start + 1; i <= end; i++) {
+        ctx.globalAlpha = 0.2 + 0.8 * ((i - start) / Math.max(1, end - start));
+        ctx.beginPath(); ctx.moveTo(px(points[i - 1]), py(points[i - 1])); ctx.lineTo(px(points[i]), py(points[i])); ctx.stroke();
+      }
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = color("--accent-solid", "#2563eb");
+      ctx.beginPath(); ctx.arc(px(points[end]), py(points[end]), 5, 0, Math.PI * 2); ctx.fill();
+    });
+    const p = points[end];
+    readout.textContent = `step ${end + 1} / ${n}  ·  x ${p[0].toFixed(3)}  y ${p[1].toFixed(3)}  z ${p[2].toFixed(3)}`;
+  }
+  slider.addEventListener("input", () => draw(Number(slider.value)));
+  draw(n - 1);
+}

@@ -435,6 +435,22 @@ def build_router(samples_root: Path) -> APIRouter:
             raise HTTPException(404, "No setup image")
         return FileResponse(paths.setup_jpg, media_type="image/jpeg")
 
+    @router.get("/api/episodes/{episode_id}/cartesian-path")
+    def get_cartesian_path(episode_id: str):
+        """End-effector x/y/z of the commanded cartesian_position action (first three
+        values of /commands/target). Empty when the action space is not cartesian_position."""
+        try:
+            paths = resolve_episode_paths(samples_root, episode_id)
+            header = read_header(paths.h5)
+        except DatahiveError as e:
+            raise HTTPException(404, str(e))
+        if "cartesian_position" not in (header.action_space or []):
+            return {"points": [], "n": 0}
+        data = read_trajectory(paths.h5, group="commands", fields=["target"])
+        target = data.get("target") or []
+        points = [[float(v) for v in row[:3]] for row in target if isinstance(row, list) and len(row) >= 3]
+        return {"points": points, "n": len(points)}
+
     @router.post("/api/episodes/{episode_id}/annotate")
     def post_annotate(episode_id: str, payload: AnnotatePayload):
         """Saves the trials.csv row only -- distinct from /validate, which

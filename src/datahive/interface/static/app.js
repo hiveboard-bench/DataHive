@@ -716,7 +716,8 @@ async function refreshList() {
   }
 
   if (dayGroupsStartCollapsed) {
-    groups.forEach((g) => collapsedDays.add(g.key));
+    // Wide screens start with the days folded; on a phone the list is the whole screen, so keep it open.
+    if (!window.matchMedia("(max-width: 900px)").matches) groups.forEach((g) => collapsedDays.add(g.key));
     dayGroupsStartCollapsed = false; // only seed on the very first render
   }
 
@@ -878,6 +879,7 @@ bulkDeleteBtn.addEventListener("click", async () => {
     if (selectedId && ids.includes(selectedId)) {
       selectedId = null;
       detailEl.innerHTML = '<p class="empty-hint">Select an episode to see its details.</p>';
+      document.body.classList.remove("annotate-detail");
     }
   } catch (err) {
     showToast(err.message, { type: "error", title: "Bulk delete failed" });
@@ -1013,6 +1015,7 @@ function cameraTooltipText(spec) {
 
 async function selectEpisode(episodeId) {
   const myToken = ++selectEpisodeToken;
+  document.body.classList.add("annotate-detail");
   selectedId = episodeId;
   updateNavButtons();
 
@@ -1666,6 +1669,7 @@ async function selectEpisode(episodeId) {
       await api(`/api/episodes/${episodeId}`, { method: "DELETE" });
       selectedId = null;
       detailEl.innerHTML = '<p class="empty-hint">Select an episode to see its details.</p>';
+      document.body.classList.remove("annotate-detail");
       await refreshList();
       await refreshHubStatus();
       await renderListStats();
@@ -2699,3 +2703,11 @@ function trajectoryRender(body, points) {
   slider.addEventListener("input", () => { end = Number(slider.value); draw(); });
   draw();
 }
+
+
+// Narrow screens show either the episode list or one episode; this button and the view switch go back to the list.
+(function () {
+  const back = document.getElementById("listBackBtn");
+  if (back) back.addEventListener("click", () => document.body.classList.remove("annotate-detail"));
+  window.addEventListener("viewchange", () => document.body.classList.remove("annotate-detail"));
+})();

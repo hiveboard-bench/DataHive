@@ -230,12 +230,15 @@ function rnUseSession(session, step) {
   rnRender();
 }
 
+// Lets long ids wrap after each underscore instead of in the middle of a word.
+function rnBreakable(id) { return escapeHtml(id).replace(/_/g, "_<wbr>"); }
+
 // ---------------------------------------------------------------- setup
 function rnSessionRowHtml(s) {
   const pct = s.n_planned ? Math.round((100 * s.n_recorded) / s.n_planned) : 0;
   return `<div class="rn-session">
     <div class="rn-session-main">
-      <div class="rn-session-title"><code>${escapeHtml(s.session_id)}</code><span class="chip-static">${escapeHtml(humanize(s.mode || "manual"))}</span></div>
+      <div class="rn-session-title"><code>${rnBreakable(s.session_id)}</code><span class="chip-static">${escapeHtml(humanize(s.mode || "manual"))}</span></div>
       <div class="rn-muted">${escapeHtml(s.operator_name)} &middot; ${s.date}</div>
       <div class="progress-bar"><div style="width:${pct}%"></div></div>
     </div>
@@ -515,7 +518,7 @@ function rnSessionHeaderHtml() {
   return `
     <section class="rn-hero">
       <div class="rn-hero-top">
-        <div><p class="eyebrow">Session</p><h2><code>${escapeHtml(s.session_id)}</code></h2>
+        <div><p class="eyebrow">Session</p><h2><code>${rnBreakable(s.session_id)}</code></h2>
           <div class="rn-chips"><span class="chip-static">${escapeHtml(s.lab_id)}</span><span class="chip-static">${escapeHtml(s.platform_id)}</span>
           <span class="chip-static">${escapeHtml(s.operator_name)}</span><span class="chip-static">${s.date}</span></div></div>
         <label class="toggle-control" title="Countdown and timer beeps"><input type="checkbox" id="rnSound" ${rn.sound ? "checked" : ""}><span>Sounds</span></label>

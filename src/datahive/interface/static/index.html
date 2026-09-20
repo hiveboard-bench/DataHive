@@ -2,10 +2,10 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>DataHive</title>
 <link rel="icon" type="image/svg+xml" href="/favicon.svg">
 <script>
-  // Applied before first paint to avoid a flash of the wrong theme.
   (function () {
     try {
       var stored = localStorage.getItem("datahive-theme");
@@ -16,7 +16,7 @@
     } catch (e) { /* localStorage unavailable -- fall back to OS preference via CSS */ }
   })();
 </script>
-<link rel="stylesheet" href="/style.css?v=68">
+<link rel="stylesheet" href="/style.css?v=79">
 </head>
 <body>
   <header>
@@ -36,11 +36,12 @@
       <span class="hub-status-text">Checking…</span>
     </div>
     <div class="episode-nav" aria-label="Episode navigation">
-      <button id="prevBtn" class="btn-nav" type="button" title="Previous episode (←)" aria-label="Previous episode" disabled>◀ Prev</button>
+      <button id="listBackBtn" class="btn-nav list-back" type="button" title="Back to the episode list" aria-label="Back to the episode list">&#9776;<span class="nav-text"> Episodes</span></button>
+      <button id="prevBtn" class="btn-nav" type="button" title="Previous episode (←)" aria-label="Previous episode" disabled>◀<span class="nav-text"> Prev</span></button>
       <div id="sessionH5Name" class="episode-name placeholder" aria-live="polite">No episode selected</div>
       <span id="episodePosition" class="episode-position" aria-hidden="true"></span>
-      <button id="nextBtn" class="btn-nav" type="button" title="Next episode (→)" aria-label="Next episode" disabled>Next ▶</button>
-      <button id="nextUnannotatedBtn" class="btn-nav unannotated-btn" type="button" title="Jump to next episode that isn't fully annotated" aria-label="Next unannotated episode">Next unannotated ▶▶</button>
+      <button id="nextBtn" class="btn-nav" type="button" title="Next episode (→)" aria-label="Next episode" disabled><span class="nav-text">Next </span>▶</button>
+      <button id="nextUnannotatedBtn" class="btn-nav unannotated-btn" type="button" title="Jump to next episode that isn't fully annotated" aria-label="Next unannotated episode"><span class="nav-text">Next unannotated </span>▶▶</button>
     </div>
     <div class="toolbar">
       <div class="toolbar-group toolbar-actions">

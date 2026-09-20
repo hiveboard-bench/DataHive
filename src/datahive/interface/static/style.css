@@ -274,6 +274,8 @@ main {
   flex-shrink: 0;
 }
 .bulk-bar #bulkCount { font-weight: 600; margin-right: auto; }
+.bulk-bar { flex-wrap: wrap; }
+@media (max-width: 1400px) { #bulkBar .btn-icon > span { display: none; } }   /* icons only, so "Clear" is not cut off */
 .bulk-bar button { padding: 0.25rem 0.5rem; font-size: 0.8rem; }
 .bulk-bar button:disabled { opacity: 0.4; cursor: not-allowed; border-color: var(--border); color: var(--muted); background: transparent; }
 .list-group-header {
@@ -1828,3 +1830,111 @@ button.rn-go.auto-send .rn-btn-main svg { width: 0.95rem; height: 0.95rem; }
 .traj-readout { font-size: 0.82rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 .traj-3d { width: 100%; height: 440px; background: radial-gradient(ellipse at 50% 40%, var(--bg), var(--soft)); cursor: grab; touch-action: none; display: block; } .traj-3d:active { cursor: grabbing; }
 .traj-hint { font-size: 0.75rem; color: var(--muted); text-align: center; margin-top: 0.3rem; }
+
+/* A hidden tooltip must not widen the page: only lay it out while it is shown. */
+.info-icon:not(:hover):not(:focus)::after, [data-tooltip]:not(:hover):not(:focus-visible)::after { display: none; }
+
+/* Grid children may shrink below their content (code blocks, long ids) instead of widening the page. */
+.trial-layout > *, .auto-connect-body > *, .rn-file { min-width: 0; }
+.upload-issues li { overflow-wrap: anywhere; }
+#list { overflow-x: hidden; }
+
+/* The Hub status belongs to Annotate (uploading); the other sections do not need it. */
+body:not([data-view="annotate"]) .hub-status { display: none; }
+
+/* ---- Responsive: tablets and phones ------------------------------------------------------
+   Everything is inside media queries except the two lines below, so desktop layouts are unchanged. */
+body { height: 100vh; height: 100dvh; }              /* dvh: mobile browsers' collapsing toolbars */
+.list-back { display: none; }                         /* only used on narrow screens, see below */
+
+@media (max-width: 900px) {
+  /* Two rows: the brand centered on top; tabs on the left and actions on the right below it.
+     The episode navigation (Annotate only) gets a third row. */
+  header { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 0.5rem 0.6rem; padding: 0.6rem 0.75rem; }
+  header h1 { grid-column: 1 / -1; grid-row: 1; justify-self: center; font-size: 1.1rem; }
+  header .hub-status { grid-column: 1 / -1; grid-row: 1; justify-self: end; padding: 0.2rem 0.5rem; font-size: 0.72rem; }
+  header .mode-tabs { grid-column: 1; grid-row: 2; justify-self: start; }
+  header .toolbar { grid-column: 2; grid-row: 2; margin-left: 0; }
+  header .episode-nav { grid-column: 1 / -1; grid-row: 3; }
+  .episode-nav { width: 100%; margin: 0; padding: 0.25rem 0.4rem; gap: 0.4rem; }
+  .episode-nav .episode-name { flex: 1 1 auto; min-width: 0; max-width: none; padding: 0 0.25rem; }
+
+  /* Annotate: one panel at a time. The list first; choosing an episode shows it, "Episodes" goes back. */
+  #view-annotate { grid-template-columns: minmax(0, 1fr); }
+  body[data-view="annotate"] .episode-detail { display: none; }
+  body[data-view="annotate"].annotate-detail .episode-list-panel { display: none; }
+  body[data-view="annotate"].annotate-detail .episode-detail { display: block; }
+  body[data-view="annotate"].annotate-detail .list-back { display: inline-flex; align-items: center; }
+  .episode-list-panel { border-right: 0; }
+  .episode-detail { padding: 1rem; }
+  .detail-header { flex-wrap: wrap; }
+  .detail-header > * { min-width: 0; }
+  .detail-header h2 { overflow-wrap: anywhere; font-size: 1.15rem; }
+
+  .rn-hero { padding: 1rem; }
+  .rn-hero-top > * { min-width: 0; }
+  .rn-hero h2 { overflow-wrap: anywhere; font-size: 1.15rem; }
+  .profile-progress { top: 0.4rem; }
+
+  /* Wide tables and code scroll inside their own box instead of widening the page. */
+  .table-scroll, .table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .about-cols > div { border: 1px solid var(--border); border-radius: 14px; padding: 1rem 1.1rem; background: var(--bg); }
+  .about-cols li { display: flex; gap: 0.6rem; padding: 0.4rem 0; border-top: 1px solid var(--border); }
+  .about-cols li:first-child { border-top: 0; }
+  .about-cols > div:nth-child(2) li::before { content: "\2713"; color: var(--success); font-weight: 700; }
+  .about-cols > div:nth-child(3) li::before { content: "\2212"; color: var(--muted); font-weight: 700; }
+  .rn-hero-top { flex-wrap: wrap; }
+  .trial-layout, .view .field-grid { grid-template-columns: minmax(0, 1fr); }
+  .rn-session { grid-template-columns: minmax(0, 1fr); }
+  .rn-session > * { min-width: 0; }
+  .rn-session-actions { flex-wrap: wrap; }
+  .rn-session-title { flex-wrap: wrap; overflow-wrap: anywhere; }
+  .pane-header { flex-wrap: wrap; }
+  .camera-controls { flex-wrap: wrap; }
+  .upload-stats { grid-template-columns: repeat(2, 1fr); }
+  .upload-issues li { overflow-wrap: anywhere; }
+}
+
+@media (max-width: 600px) {
+  /* Icon-only navigation: the words are in the tooltips and aria-labels. */
+  .nav-text { display: none; }
+  .rn-trial-side { min-width: 0; }
+  .auto-flow { padding: 0.6rem 0.5rem; }
+  .auto-flow li { min-width: 0; gap: 0.35rem; font-size: 0.75rem; }
+  .auto-flow li:not(:last-child)::after { margin: 0 0.3rem; min-width: 0.4rem; }
+  .rn-file input { max-width: 100%; }
+  .episode-nav .btn-nav { min-width: 2.4rem; padding: 0.4rem 0.6rem; }
+  .episode-nav .episode-position { display: none; }
+  .episode-detail { padding: 0.75rem; }
+
+  /* 16px inputs stop iOS from zooming the page when a field gets focus. */
+  input, select, textarea { font-size: 16px; }
+  /* Easier to tap. */
+  button, .btn-icon, .segment, .mode-tab { min-height: 2.5rem; }
+  .btn-nav { min-height: 2.25rem; }
+
+  .toast-container { top: 0.5rem; width: calc(100% - 1rem); }
+  .overlay { padding: 0; }
+  .overlay-panel { max-width: none; min-height: 100%; border-radius: 0; padding: 1rem 0.9rem 1.5rem; }
+  .rn-modal { inset: 0; padding: 0; }
+  .rn-modal-panel { width: 100%; min-height: 100%; border-radius: 0; padding: 1rem 0.9rem 1.5rem; }
+  .home-hero h2 { font-size: 1.4rem; }
+  .home-inner { padding-left: 0.9rem; padding-right: 0.9rem; }
+}
+
+/* Hover tooltips have no hover on touch screens: they would stick after a tap and run off the edge. */
+@media (hover: none) {
+  [data-tooltip]::after { display: none; }
+}
+
+@media (max-width: 600px) {
+  /* Session cards: the id and progress on top, then the count on the left and the buttons on the right. */
+  .rn-session { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "main main" "count actions"; gap: 0.7rem 0.8rem; padding: 1rem; }
+  .rn-session-main { grid-area: main; }
+  .rn-session-count { grid-area: count; display: flex; align-items: baseline; gap: 0.3rem; text-align: left; }
+  .rn-session-count span { display: inline; font-size: 0.72rem; }
+  .rn-session-actions { grid-area: actions; justify-content: flex-end; flex-wrap: nowrap; }
+  .rn-session-title code { font-size: 0.8rem; line-height: 1.4; }
+  .rn-session .progress-bar { margin: 0.55rem 0 0; }
+  .rn-hero h2 { line-height: 1.3; }
+}

@@ -480,10 +480,13 @@ def test_web_interface_navigation_bar(samples_root):
     resp = client.get("/")
     assert resp.status_code == 200
     html = resp.text
-    assert "◀ Prev" in html
+    # The words sit in .nav-text spans so phones can show icons only.
+    assert '◀<span class="nav-text"> Prev</span>' in html
     assert "No episode selected" in html
-    assert "Next ▶" in html
-    assert "Next unannotated ▶▶" in html
+    assert '<span class="nav-text">Next </span>▶' in html
+    assert '<span class="nav-text">Next unannotated </span>▶▶' in html
+    assert 'id="listBackBtn"' in html
+    assert 'name="viewport"' in html
     assert 'id="prevBtn"' in html
     assert 'id="nextBtn"' in html
     assert 'id="nextUnannotatedBtn"' in html

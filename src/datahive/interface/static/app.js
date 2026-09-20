@@ -1,5 +1,4 @@
-// Plain JS, no build step, no framework. Talks to the same JSON API that
-// backs `datahive list`/`validate`/`upload`/`delete`/`sync`.
+
 
 const listEl = document.getElementById("list");
 const detailEl = document.getElementById("detail");
@@ -30,9 +29,6 @@ const themeToggleBtn = document.getElementById("themeToggleBtn");
 const themeIconMoon = document.getElementById("themeIconMoon");
 const themeIconSun = document.getElementById("themeIconSun");
 
-// --- Theme toggle. index.html's inline <head> script already applied the
-// stored/OS-preferred theme before first paint; this just wires the button
-// and persists explicit choices. ---
 const THEME_KEY = "datahive-theme";
 
 function currentTheme() {
@@ -54,18 +50,10 @@ themeToggleBtn.addEventListener("click", () => {
 updateThemeIcon(currentTheme());
 
 let selectedId = null;
-// Bumped on every selectEpisode() call; a call whose token has since been
-// superseded (e.g. the user clicked another episode before this one's
-// fetches resolved) abandons instead of overwriting the newer render with
-// stale data -- this was the "have to F5" bug: clicking through episodes
-// quickly let an older, slower request finish last and silently clobber
-// (or, on a hard error, just never repaint) the detail panel.
 let selectEpisodeToken = 0;
 let attachmentsCache = null;
 const selectedEpisodes = new Set();
 
-// Video playback preferences, persisted across episode switches for this
-// page load (not per-viewer storage -- just in-memory module state).
 let videoPlaybackRate = 1;
 let videoLayoutCols = 1;
 let currentVideoElements = [];
@@ -235,32 +223,16 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// Turns "safety_stop" into "Safety stop" -- used wherever an enum value
-// (outcome, failure_cause, ...) is shown as a human-facing label. The
-// underlying <option value="..."> keeps the raw lowercase value.
 function humanize(value) {
   if (!value) return "";
   const s = String(value).replace(/_/g, " ");
   return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
-// A field label with a red required-asterisk immediately after the text.
-// Labels are flex columns (text above the input), so the text and the
-// asterisk must be wrapped in one inline element -- otherwise the
-// asterisk becomes its own flex child and drops onto its own line
-// instead of sitting to the right of the word. For fields that are only
-// conditionally required (Failure cause, Reason, Stage reached), this is
-// only ever rendered while that field is also visible -- i.e. exactly
-// when it's actually required.
 function fieldLabel(text) {
   return `<span class="field-label-text">${text}<span class="required-mark" title="Required">*</span></span>`;
 }
 
-// A button-group ("segmented control") in place of a native <select>, for
-// short enum fields where clicking an option beats picking from a
-// dropdown. Renders a hidden input (so it's a normal form field on
-// submit) plus one button per option; wireSegmentedControls() below
-// handles the click-to-select behavior for every one of these in a form.
 function segmentedControlHtml(name, options, current, titles = {}, allowDeselect = false) {
   const currentStr = current != null ? String(current) : "";
   const buttons = options.map((v) => {
@@ -271,8 +243,6 @@ function segmentedControlHtml(name, options, current, titles = {}, allowDeselect
   return `<input type="hidden" name="${name}" value="${currentStr}"><div class="segmented" data-name="${name}"${deselectAttr}>${buttons}</div>`;
 }
 
-// Shown on hover over each Outcome option -- what the evaluator actually
-// checks to reach that outcome for a HiveBoard trial.
 const OUTCOME_MEANINGS = {
   success: "The task's success criterion was fully met before the timeout.",
   fail: "The attempt ended without meeting the success criterion, before the timeout was reached.",
@@ -280,7 +250,6 @@ const OUTCOME_MEANINGS = {
   safety_stop: "The trial was stopped early by a safety event (e.g. a force/torque limit or emergency stop).",
 };
 
-// Shown on hover over each Strategy option.
 const STRATEGY_MEANINGS = {
   prehensile: "Grasping or gripping the object with the end-effector (e.g. pinch, power grasp).",
   non_prehensile: "Manipulating without grasping (e.g. pushing, sliding, rolling, or poking).",
@@ -308,9 +277,6 @@ function wireSegmentedControls(form) {
   });
 }
 
-// Sets a segmented control's value programmatically (e.g. "Copy from
-// previous") -- same active-state + hidden-input + segmentchange effects
-// a real click would have, without needing to fake a click event.
 function setSegmentedValue(form, name, value) {
   const group = form.querySelector(`.segmented[data-name="${name}"]`);
   if (!group) return;
@@ -321,8 +287,6 @@ function setSegmentedValue(form, name, value) {
   group.dispatchEvent(new Event("segmentchange", { bubbles: true }));
 }
 
-// Stage definitions from HiveBoard documentation (tasks & evaluation-runner)
-// for Composed Assembly tasks (multi-stage attachments).
 const COMPOSED_TASK_STAGES = {
   button: ["Open cover", "Press button"],
   lock: ["Grasp key", "Insert key vertically", "Rotate to unlock"],
@@ -343,9 +307,6 @@ function getTaskStages(info, taskId) {
   return null;
 }
 
-// "Last completed stage *" as a dropdown <select> menu of the selected composed
-// task's stage names (0 = "0 — No stage completed") based on HiveBoard tasks protocol.
-// Completion time can come from the manual stopwatch, the HDF5 recording or the video.
 const COMPLETION_SOURCE_LABELS = { timer: "Timer", hdf5: "HDF5", video: "Video" };
 
 function completionSourceHtml(sources, current) {
@@ -356,7 +317,6 @@ function completionSourceHtml(sources, current) {
   return `<input type="hidden" name="completion_source" value="${chosen}"><div class="segmented" data-name="completion_source">${buttons}</div>`;
 }
 
-// The Validate button reports the episode's state: not checked, valid, or not valid.
 function validateStateOf(index) {
   const st = index && index.status;
   if (st === "validated" || st === "uploaded") return "is-valid";
@@ -439,8 +399,6 @@ async function loadAttachments() {
   return attachmentsCache;
 }
 
-// --- Hub sync status badge (header) ---
-
 async function refreshHubStatus() {
   let status;
   try {
@@ -474,11 +432,6 @@ async function refreshHubStatus() {
   hubStatusEl.querySelector(".hub-status-text").textContent = text;
   hubStatusEl.title = title;
 }
-
-// --- Left-panel dataset summary (total / annotated / online) -- always
-// counts the whole samples/ tree, independent of the active search/status
-// filter, so it reads as "how much data do I have" rather than "how many
-// results are showing". ---
 
 async function renderListStats() {
   const el = document.getElementById("listStats");
@@ -1519,8 +1472,6 @@ async function selectEpisode(episodeId) {
 
     return payload;
   }
-
-  // The browser blocks an invalid form silently when the field cannot be focused; say why.
   form.addEventListener("invalid", (e) => {
     const f = e.target;
     const label = (f.closest("label") && f.closest("label").querySelector(".field-label-text, .field-label-row")) || null;
@@ -1680,9 +1631,6 @@ async function selectEpisode(episodeId) {
   };
 }
 
-// --- Robot profile: create/edit from the interface, same file the CLI's
-// `datahive new-profile` writes and `robot_profile.yaml` on disk. ---
-
 const EE_TYPES = ["gripper", "dexterous_hand", "prosthetic_hand", "other"];
 const EE_TYPE_TITLES = {
   gripper: "Parallel-jaw, suction, or standard gripper",
@@ -1780,7 +1728,6 @@ function profileGroupTitle(title, hint) {
   return `<div class="profile-group-title"><h4>${title}</h4><span>${hint}</span></div>`;
 }
 
-// Recommended cards start minimized; clicking the header opens them.
 function profileCard(icon, title, badge, desc, inner, key = "") {
   const badgeHtml = badge ? `<span class="${badge.cls}">${badge.text}</span>` : "";
   const collapsible = !!badge && badge.cls === "recommended-badge";
@@ -1800,8 +1747,6 @@ function profileCard(icon, title, badge, desc, inner, key = "") {
 
 const IC_GAIN = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"></line><line x1="4" y1="10" x2="4" y2="3"></line><line x1="12" y1="21" x2="12" y2="12"></line><line x1="12" y1="8" x2="12" y2="3"></line><line x1="20" y1="21" x2="20" y2="16"></line><line x1="20" y1="12" x2="20" y2="3"></line></svg>`;
 const IC_CALIB = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"></rect><line x1="3" y1="9" x2="21" y2="9"></line><line x1="3" y1="15" x2="21" y2="15"></line><line x1="9" y1="3" x2="9" y2="21"></line><line x1="15" y1="3" x2="15" y2="21"></line></svg>`;
-
-// Gains follow oopsie: the active controller maps to arrays of numbers.
 const GAIN_FIELDS = { joint_position: ["kp", "kd"], joint_velocity: ["kv"], osc: ["kp_pos", "kd_pos", "kp_ori", "kd_ori"] };
 const GAIN_TITLES = {
   joint_position: "Joint position controller: kp and kd arrays",
@@ -1836,7 +1781,6 @@ function calibrationHtml(cams, profile) {
       </div></div>`).join("");
 }
 
-// Live "N of 5 required fields" line, computed from the form as it is edited.
 function updateProfileProgress(form) {
   const val = (n) => (form.elements[n] ? form.elements[n].value.trim() : "");
   const cams = Array.from(form.querySelectorAll("#cameraList .camera-entry"));
@@ -1866,7 +1810,7 @@ function updateProfileProgress(form) {
   const needAction = picked.has("cartesian_position") && !val("orientation_representation");
   const needState = cartesian && !val("robot_state_orientation_representation");
   if (needAction || needState) {
-    const card = form.querySelector('.profile-card[data-card="orientation"]');   // a required field must not hide
+    const card = form.querySelector('.profile-card[data-card="orientation"]');   
     if (card) card.classList.add("open");
   }
   const checks = [
@@ -2136,7 +2080,7 @@ function renderProfileForm(profile, problems, exists) {
       });
       msg.textContent = result.problems.length ? `Saved, but still incomplete (${result.problems.length} issue(s)).` : "Saved. Profile is complete.";
       renderProfileForm(result.profile, result.problems, result.exists);
-      attachmentsCache = null; // harmless cache-bust
+      attachmentsCache = null;
       await refreshList();
     } catch (err) {
       msg.textContent = `Error: ${err.message}`;
@@ -2163,8 +2107,6 @@ profileOverlay.addEventListener("click", (e) => {
   if (e.target === profileOverlay) profileOverlay.classList.add("hidden");
 });
 
-// The statistics refresh by themselves while the panel is open, so new episodes,
-// annotations and uploads show up without reopening it.
 let statsTimer = null;
 let statsLastKey = "";
 
@@ -2172,7 +2114,7 @@ async function refreshStats(force = false) {
   try {
     const data = await api("/api/statistics");
     const key = JSON.stringify(data);
-    if (!force && key === statsLastKey) return;            // nothing changed: do not redraw
+    if (!force && key === statsLastKey) return;           
     statsLastKey = key;
     const scroller = statsBody.closest(".overlay-panel");
     const top = scroller ? scroller.scrollTop : 0;
@@ -2198,7 +2140,6 @@ async function openStatsOverlay() {
 window.openStatsOverlay = openStatsOverlay;
 window._loadStats = openStatsOverlay;
 
-// Statistics are split by plan (session). "" means all plans together.
 let statsPlan = null;
 
 function planLabel(p) {

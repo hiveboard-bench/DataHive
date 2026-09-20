@@ -68,8 +68,6 @@ def test_init_refuses_when_cwd_is_inside_git_repo_even_if_config_elsewhere(tmp_p
     monkeypatch.setenv("DATAHIVE_CONFIG_HOME", str(other_home / ".datahive"))
     monkeypatch.chdir(repo)
     cfg = _cfg()
-    # Config path itself is not inside a git repo, so this must succeed;
-    # the git guard only fires when the *config path* resolves inside one.
     path = save_config(cfg)
     assert path.is_file()
 

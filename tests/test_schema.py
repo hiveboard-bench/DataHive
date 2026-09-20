@@ -31,7 +31,6 @@ def test_non_success_requires_failure_cause_and_forbids_completion_time(outcome)
         TrialAnnotation.model_validate(base(outcome=outcome, completion_time_s=None, failure_cause=None))
     with pytest.raises(PydanticValidationError, match="completion_time_s"):
         TrialAnnotation.model_validate(base(outcome=outcome, failure_cause="slip"))
-    # Correct shape works.
     TrialAnnotation.model_validate(base(outcome=outcome, completion_time_s=None, failure_cause="slip"))
 
 
@@ -49,7 +48,6 @@ def test_stage_reached_required_for_composed_assembly():
 
 
 def test_stage_reached_unconstrained_when_context_omitted():
-    # Unknown attachment -> caller omits the context key entirely.
     TrialAnnotation.model_validate(base(stage_reached=None))
     TrialAnnotation.model_validate(base(stage_reached=2))
 
@@ -87,9 +85,7 @@ def test_severity_forbidden_on_success():
 
 
 def test_severity_allowed_but_optional_on_failure():
-    # Optional: a failed trial need not set severity...
     TrialAnnotation.model_validate(base(outcome="fail", completion_time_s=None, failure_cause="slip"))
-    # ...but may.
     ann = TrialAnnotation.model_validate(
         base(outcome="fail", completion_time_s=None, failure_cause="slip", severity="critical")
     )

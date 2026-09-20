@@ -68,15 +68,10 @@ def test_touching_h5_reenables_upload(samples_root, filled_profile, fake_hub):
 
 
 def test_remote_only_file_detected_not_downloaded(samples_root, filled_profile, fake_hub):
-    # Simulate a file uploaded from a different machine: present on the
-    # fake Hub, absent from the local index.
     fake_hub._fake_api.uploaded_files["other_session/episodes/ghost_ep.h5"] = b"x"
 
     report = ops.sync(samples_root, hub=fake_hub)
     assert report.remote_only == ["ghost_ep"]
-    # No download call should have been made (FakeHfApi has no download
-    # method at all -- if sync tried to call it, this test would error).
-
 
 def test_upload_failure_marks_upload_failed_and_retries_next_sync(samples_root, filled_profile, fake_hub, monkeypatch):
     _validated_episode(samples_root, filled_profile, episode_id="ep1")

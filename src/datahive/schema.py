@@ -3,10 +3,18 @@
 from __future__ import annotations
 
 from datetime import date, datetime
-from enum import StrEnum
+from enum import Enum
 from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
+
+try:
+    from enum import StrEnum
+except ImportError:  # Python 3.10: enum.StrEnum arrived in 3.11
+
+    class StrEnum(str, Enum):
+        def __str__(self) -> str:
+            return str(self.value)
 
 
 EPISODE_SCHEMA_V1 = "datahive_episode_v1"

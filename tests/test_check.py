@@ -17,7 +17,7 @@ runner = CliRunner()
 def _fill_profile(samples_root):
     path = write_profile_skeleton(samples_root)
     data = yaml.safe_load(path.read_text())
-    data["manipulator"] = {"model": "TestArm", "dof": 6, "joint_names": ["j1"]}
+    data["manipulator"] = {"model": "TestArm", "dof": 6, "joint_names": ["j1", "j2", "j3", "j4", "j5", "j6"]}
     data["low_level"] = {"mode": "stock"}
     data["cameras"] = [{"name": "external", "resolution": "1280x720", "encoding": "h264", "fps": 30}]
     data["platform_id"] = "rig-01"
@@ -156,3 +156,22 @@ def test_cli_check_json(samples_root):
     data_all = json.loads(res_all.output)
     assert isinstance(data_all, list)
     assert len(data_all) == 1
+
+
+def test_check_catches_what_validate_would(samples_root):
+    """check runs the same recording rules as validate (minus annotation)."""
+    import h5py
+    import numpy as np
+
+    profile = _fill_profile(samples_root)
+    make_episode(samples_root, "sess1", "short", profile=profile, rate_hz=100.0, n_points=50)
+    report = check_episode(samples_root, "short")
+    assert report["ok"] is False
+    assert any("must be between 1 and 600" in p for p in report["problems"])
+
+    h5 = make_episode(samples_root, "sess1", "nan", profile=profile, rate_hz=100.0, n_points=150)
+    with h5py.File(h5, "r+") as f:
+        f["proprioception/joint_position"][3] = np.nan
+    report = check_episode(samples_root, "nan")
+    assert report["ok"] is False
+    assert any("NaN" in p for p in report["problems"])

@@ -407,9 +407,8 @@ function formatSteps(n) {
   return n == null ? "–" : n.toLocaleString();
 }
 
-// --- Toasts (top-of-page popups for errors/successes) ---
-
 const TOAST_ICONS = {
+  warning: '<path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line>',
   error: '<circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="12"></line><line x1="12" y1="16" x2="12.01" y2="16"></line>',
   success: '<path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path><polyline points="22 4 12 14.01 9 11.01"></polyline>',
 };
@@ -1553,6 +1552,19 @@ async function selectEpisode(episodeId) {
         return;
       }
 
+      const failed = form.outcome && form.outcome.value && form.outcome.value !== "success";
+      if (!(form.strategy && form.strategy.value)) {
+        msg.textContent = "Error: Strategy is required.";
+        showToast("Choose a strategy: Prehensile or Non prehensile.", { type: "error", title: "Validation error" });
+        return;
+      }
+      if (failed && form.failure_cause && form.failure_cause.value === "other" && !(form.failure_cause_detail.value || "").trim()) {
+        msg.textContent = "Error: Reason is required when the failure cause is Other.";
+        showToast("Write what happened in the Reason field.", { type: "error", title: "Validation error" });
+        form.failure_cause_detail.focus();
+        return;
+      }
+
       const currentTask = (attachments && form.attachment_id) ? (attachments[form.attachment_id.value] || info) : info;
       const isComposed = isComposedTask(currentTask, form.attachment_id ? form.attachment_id.value : null);
       const payload = collectAnnotationPayload();
@@ -1614,8 +1626,13 @@ async function selectEpisode(episodeId) {
       const result = await api(`/api/episodes/${episodeId}/validate`, { method: "POST" });
       setState(result.ok ? "is-valid" : "is-invalid");
       if (result.ok) {
-        msg.textContent = "Episode is valid.";
-        showToast("Episode is valid.", { type: "success", title: episodeId, timeout: 4000 });
+        const warnings = result.warnings || [];
+        msg.textContent = warnings.length ? `Episode is valid, with ${warnings.length} warning(s).` : "Episode is valid.";
+        if (warnings.length) {
+          showToast(`Episode is valid, but check:\n${warnings.map((w) => `- ${w}`).join("\n")}`, { type: "warning", title: episodeId, timeout: 12000 });
+        } else {
+          showToast("Episode is valid.", { type: "success", title: episodeId, timeout: 4000 });
+        }
       } else {
         msg.textContent = "Validation failed.";
         showToast(result.error, { type: "error", title: `Validation failed: ${episodeId}`, timeout: 12000 });

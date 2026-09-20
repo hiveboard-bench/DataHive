@@ -7,12 +7,24 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from pydantic import ValidationError
+
 from datahive.attachments import is_composed_assembly
 from datahive.episode import read_header
 from datahive.errors import AnnotationError
 from datahive.paths import resolve_episode_paths
 from datahive.schema import ANNOTATION_SCHEMA_CURRENT, TrialAnnotation
 from datahive.trials import upsert_row
+
+
+def _readable(err: ValidationError) -> str:
+    """One line per problem, without pydantic's type codes and doc links."""
+    lines = []
+    for item in err.errors():
+        field = ".".join(str(p) for p in item["loc"])
+        msg = str(item["msg"]).removeprefix("Value error, ")
+        lines.append(f"{field}: {msg}" if field else msg)
+    return "; ".join(lines)
 
 
 def annotate_episode(
@@ -57,6 +69,8 @@ def annotate_episode(
 
     try:
         annotation = TrialAnnotation.model_validate(data, context=context)
+    except ValidationError as e:
+        raise AnnotationError(f"Invalid annotation: {_readable(e)}") from e
     except Exception as e:
         raise AnnotationError(f"Invalid annotation: {e}") from e
 

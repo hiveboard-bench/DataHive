@@ -148,3 +148,36 @@ def test_failure_cause_detail_csv_roundtrip():
     assert row["failure_cause_detail"] == "Gripper jaw misaligned"
     ann2 = TrialAnnotation.from_csv_row(row)
     assert ann2.failure_cause_detail == "Gripper jaw misaligned"
+
+
+def test_annotation_errors_are_readable(samples_root, filled_profile):
+    """An invalid annotation is reported per field, without pydantic's URLs or type codes."""
+    import pytest
+
+    from datahive.annotate import annotate_episode
+    from datahive.errors import AnnotationError
+    from tests.conftest import make_episode
+
+    root = samples_root
+    make_episode(root, "s", "e1", trial_id="1", profile=filled_profile)
+    with pytest.raises(AnnotationError) as exc:
+        annotate_episode(root, "e1", {"attachment_id": "valve_ball", "outcome": "success", "strategy": "",
+                                      "operator_name": "o", "annotator_name": "a"})
+    msg = str(exc.value)
+    assert "strategy" in msg and "errors.pydantic.dev" not in msg and "input_value" not in msg
+
+
+def test_validate_rejects_placeholder_operator(samples_root, filled_profile):
+    """The Runner's default 'Unassigned' operator must be replaced before an episode can validate."""
+    from datahive.errors import ValidationError
+    from datahive.validate import validate_episode
+    from tests.conftest import make_episode, write_valid_annotation
+
+    make_episode(samples_root, "s", "e1", trial_id="1", profile=filled_profile)
+    write_valid_annotation(samples_root, "s", "1", operator_name="Unassigned")
+    with pytest.raises(ValidationError) as exc:
+        validate_episode(samples_root, "e1")
+    assert any("Unassigned" in p for p in exc.value.problems)
+
+    write_valid_annotation(samples_root, "s", "1", operator_name="Ana")
+    validate_episode(samples_root, "e1")

@@ -95,3 +95,17 @@ def test_upload_failure_marks_upload_failed_and_retries_next_sync(samples_root, 
     fake_hub.upload_episode = original_upload_episode
     report2 = ops.sync(samples_root, hub=fake_hub)
     assert "ep1" in report2.uploaded
+
+
+def test_cli_sync_dry_run_lists_what_would_be_uploaded(samples_root, filled_profile, fake_hub, monkeypatch):
+    from typer.testing import CliRunner
+
+    from datahive.cli import app
+
+    _validated_episode(samples_root, filled_profile, episode_id="ep1")
+    monkeypatch.setattr(ops, "_get_hub", lambda hub=None: fake_hub)
+
+    res = CliRunner().invoke(app, ["sync", "--samples", str(samples_root), "--dry-run"])
+    assert res.exit_code == 0, res.output
+    assert "Would upload: ep1" in res.output
+    assert not fake_hub._fake_api.upload_calls

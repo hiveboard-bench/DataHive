@@ -43,7 +43,7 @@ def upload_episode(
             idx.scan()
         rec = idx.get(episode_id)
         if rec is None:
-            raise EpisodeNotFound(episode_id)
+            raise EpisodeNotFound(f"No episode '{episode_id}' found under {samples_root}")
 
         current_hash = idx.refresh_hash(episode_id)
         rec = idx.get(episode_id)
@@ -221,7 +221,7 @@ def delete_episode(
             idx.scan()
             rec = idx.get(episode_id)
         if rec is None:
-            raise EpisodeNotFound(episode_id)
+            raise EpisodeNotFound(f"No episode '{episode_id}' found under {samples_root}")
 
         paths = resolve_episode_paths(samples_root, episode_id, rec.session_id)
         was_uploaded = rec.status == "uploaded"

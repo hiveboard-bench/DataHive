@@ -13,6 +13,7 @@ from typing import Any
 import h5py
 import numpy as np
 
+from datahive.consistency import MAX_DURATION_S, MIN_DURATION_S, _trajectories, _videos
 from datahive.episode import episode_stats, read_header, sample_rate_hz
 from datahive.errors import DatahiveError, EpisodeNotFound
 from datahive.paths import resolve_episode_paths
@@ -29,7 +30,9 @@ def check_episode(samples_root: Path, episode_id: str) -> dict[str, Any]:
       3. /proprioception/timestamp exists, has >= 2 steps, and is monotonically increasing.
       4. Proprioception sample rate meets the HiveBoard 100 Hz minimum.
       5. No severe timestamp dropouts/gaps.
-      6. All declared camera video files (.mp4) exist and are non-empty.
+      6. Recorded arrays are finite and aligned; the episode lasts 1 to 600 s.
+      6b. Every camera video exists, decodes, and matches the others and the episode
+          (resolution, fps, frame count, duration).
       7. Consistency with robot_profile.yaml (if profile exists).
 
     Returns a dict with:
@@ -136,20 +139,14 @@ def check_episode(samples_root: Path, episode_id: str) -> dict[str, Any]:
     except Exception as e:
         problems.append(f"Error inspecting datasets in {paths.h5}: {e}")
 
-    # 3. Camera video files
-    cam_names = []
-    for cam in header.cameras:
-        cname = cam.get("name") or "unnamed"
-        cam_names.append(cname)
-        fname = cam.get("file")
-        if not fname:
-            problems.append(f"Camera '{cname}' video file missing: no mp4 file recorded in header.")
-            continue
-        vpath = paths.h5.parent / fname
-        if not vpath.exists():
-            problems.append(f"Camera '{cname}' video file missing: {fname}")
-        elif vpath.stat().st_size == 0:
-            problems.append(f"Camera '{cname}' video file is empty (0 bytes): {fname}")
+    duration = _trajectories(paths.h5, header, problems_traj := [])
+    problems.extend(p for p in problems_traj if not p.startswith("Missing /proprioception"))
+    if duration is not None and not (MIN_DURATION_S <= duration <= MAX_DURATION_S):
+        problems.append(
+            f"Episode lasts {duration:.2f}s; it must be between {MIN_DURATION_S:.0f} and {MAX_DURATION_S:.0f} s."
+        )
+    _videos(paths, header, duration, problems, warnings)
+    cam_names = [cam.get("name") or "unnamed" for cam in header.cameras]
     stats["cameras"] = cam_names
 
     # 4. Consistency with robot_profile.yaml

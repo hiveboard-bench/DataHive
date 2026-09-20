@@ -434,13 +434,15 @@ def sync(samples: Optional[str] = SAMPLES_OPTION, dry_run: bool = typer.Option(F
 
     if report.newly_recorded:
         typer.echo(f"Newly recorded: {', '.join(report.newly_recorded)}")
+    if dry_run and report.skipped:
+        typer.echo(f"Would upload: {', '.join(report.skipped)}")
     if report.uploaded:
         typer.echo(f"Uploaded: {', '.join(report.uploaded)}")
     if report.upload_failed:
         typer.echo(f"Upload failed: {', '.join(report.upload_failed)}")
     if report.remote_only:
         typer.echo(f"Remote only (not downloaded, review manually): {', '.join(report.remote_only)}")
-    if not any([report.newly_recorded, report.uploaded, report.upload_failed, report.remote_only]):
+    if not any([report.newly_recorded, report.uploaded, report.upload_failed, report.remote_only, dry_run and report.skipped]):
         typer.echo("Nothing to do; everything is in sync.")
 
 

@@ -45,6 +45,7 @@ _TYPICAL_SESSION_EPILOG = """\
     [cyan]datahive annotate[/cyan] <episode_id> [dim]# fill outcome/failure cause/strategy[/dim]
     [cyan]datahive validate[/cyan] <episode_id> [dim]# local schema + profile checks[/dim]
     [cyan]datahive upload[/cyan]   <episode_id> [dim]# upload one episode to the Hub[/dim]
+    [cyan]datahive install-skill[/cyan]         [dim]# optional: AI-assistant skills for this project[/dim]
 
   [dim]Run 'datahive <command> --help' for one command's options.[/dim]"""
 
@@ -522,6 +523,29 @@ def delete(
     typer.echo(
         f"Deleted '{episode_id}' (local={result.deleted_local}, remote={result.deleted_remote})."
     )
+
+
+@app.command("install-skill")
+def install_skill(
+    user: bool = typer.Option(False, "--user", help="Install for your user (~/.claude/skills) instead of this project (./.claude/skills)"),
+    dir: Optional[str] = typer.Option(None, "--dir", metavar="DIR", help="Install into this skills directory instead"),
+    force: bool = typer.Option(False, "--force", help="Replace skills that are already installed"),
+):
+    """Install the DataHive AI-assistant skills (data prep, automatic collection)."""
+    from datahive.skill_install import default_target, install_skills
+
+    target = Path(dir).expanduser().resolve() if dir else default_target(user=user)
+    try:
+        installed, skipped = install_skills(target, force=force)
+    except DatahiveError as e:
+        typer.echo(str(e), err=True)
+        raise typer.Exit(1)
+    for p in installed:
+        typer.echo(f"Installed {p}")
+    for p in skipped:
+        typer.echo(f"Skipped {p} (already exists; pass --force to replace)")
+    if skipped and not installed:
+        raise typer.Exit(2)
 
 
 @app.command("serve", hidden=True)

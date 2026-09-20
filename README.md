@@ -56,9 +56,26 @@ while True:
 
 Trials are saved as rows of `samples/<session>/trials.csv`; all times are stored in UTC.
 
-## Tests
+## AI assistant skills
+
+Two skills for AI coding assistants (e.g. Claude Code) live in `src/datahive/skills/`:
+
+- `datahive-data-prep` – how to lay out, format, annotate and check data under `samples/` so it validates.
+- `datahive-auto-collect` – how automatic collection works and how to adapt the robot script to your setup.
+
+Install them for Claude Code with:
 
 ```
+datahive install-skill          # into ./.claude/skills (this project)
+datahive install-skill --user   # into ~/.claude/skills (all projects)
+datahive install-skill --dir DIR --force
+```
+
+## Development
+
+```
+git clone https://github.com/hiveboard-bench/DataHive
+cd DataHive
 pip install -e ".[dev]"
 pytest
 ```

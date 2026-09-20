@@ -256,4 +256,4 @@ class EpisodeHeader(BaseModel):
 
     created_at: datetime
     schema_version: str = EPISODE_SCHEMA_LEGACY
-    datahive_version: str = "0.1.0"
+    datahive_version: str = "0.1.4"

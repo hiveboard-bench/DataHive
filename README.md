@@ -4,14 +4,16 @@
 validate, annotate, and upload HiveBoard manipulation episodes to its
 private Hugging Face dataset repo.
 
-> [!IMPORTANT]
 > **Credits & Attribution**: All pipeline architecture, workflows, and core design in DataHive are directly adapted from and credited to [**Oopsie Data**](https://github.com/oopsie-data) (`oopsie-data` / `oopsie_data_tools`). Everything in DataHive — from the CLI workflow, robot profiles, and dataset indexing to the annotation GUI and Hugging Face Hub synchronization pipeline — was built upon the pipeline and concepts developed by the Oopsie Data team.
 
 ## Install
 
 ```
-pip install -e .
+pip install datahive-tools
+pip install "datahive-tools[video]"   # optional: OpenCV, so videos are actually checked
 ```
+
+Requires Python 3.10 or newer. This installs the `datahive` command.
 
 ## Quickstart
 
@@ -29,10 +31,7 @@ datahive delete <episode_id>
 datahive interface --port 8000 # local web GUI, localhost only (alias: serve)
 ```
 
-See `docs/MANUAL_SMOKE_TEST.md` for the manual (non-automated) end-to-end
-check against a real, disposable Hugging Face repo.
-
-## The sections of `datahive serve`
+## The sections of `datahive interface`
 
 Opening the interface shows a start screen with two sections, plus an About and FAQ area. Both sections share the same `samples/` tree.
 

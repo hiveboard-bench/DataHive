@@ -126,7 +126,7 @@ def test_root_config_dir_and_version_options(tmp_path, monkeypatch):
     # --version prints version and exits 0
     version_res = runner.invoke(app, ["--version"])
     assert version_res.exit_code == 0
-    assert "datahive, version 0.1.0" in version_res.output
+    assert "datahive, version 0.1.4" in version_res.output
 
     # Root --config-dir overrides location
     custom_dir = tmp_path / "root-custom-config"

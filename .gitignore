@@ -9,3 +9,4 @@ dist/
 # datahive-tools: never let the local index / secrets travel with your data.
 .datahive/
 samples/
+uv.lock

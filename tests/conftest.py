@@ -74,7 +74,7 @@ def filled_profile(samples_root) -> RobotProfile:
 def config(tmp_path) -> Config:
     cfg = Config(
         lab_id="lab_test",
-        repo_id="sua-org/lab_test",
+        repo_id="HiveBoard/lab_test",
         hf_token="hf_faketokenfaketokenfaketoken1234",
         created_at="2026-01-01T00:00:00+00:00",
     )

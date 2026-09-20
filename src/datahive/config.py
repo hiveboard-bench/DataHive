@@ -22,6 +22,13 @@ import yaml
 
 from datahive.errors import ConfigInsideGitRepo, ConfigMissing, InsecureConfigPermissions
 
+HUB_ORG = "HiveBoard"
+
+
+def default_repo_id(lab_id: str) -> str:
+    """Every lab uploads to its own dataset repo inside the HiveBoard organization."""
+    return f"{HUB_ORG}/{lab_id}"
+
 CONFIG_DIRNAME = ".datahive"
 CONFIG_FILENAME = "config.yaml"
 _ENV_HOME = "DATAHIVE_CONFIG_HOME"
@@ -160,7 +167,7 @@ def load_config(*, path: Path | None = None) -> Config:
     check_permissions(target)
     raw = yaml.safe_load(target.read_text(encoding="utf-8")) or {}
     lab_id = raw.get("lab_id", "")
-    repo_id = raw.get("repo_id") or (f"sua-org/{lab_id}" if lab_id else "")
+    repo_id = raw.get("repo_id") or (default_repo_id(lab_id) if lab_id else "")
     hf_token = raw.get("hf_token") or raw.get("huggingface_token", "")
     return Config(
         lab_id=lab_id,

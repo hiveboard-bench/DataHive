@@ -1540,6 +1540,12 @@ async function selectEpisode(episodeId) {
         form.operator_name.focus();
         return;
       }
+      if (opName.toLowerCase() === "unassigned") {
+        msg.textContent = "Error: Enter who actually ran this trial.";
+        showToast("Operator name is still the placeholder 'Unassigned'. Enter who ran the trial.", { type: "error", title: "Validation error" });
+        form.operator_name.focus();
+        return;
+      }
       if (!annName) {
         msg.textContent = "Error: Annotator name is required.";
         showToast("Annotator name is required.", { type: "error", title: "Validation error" });

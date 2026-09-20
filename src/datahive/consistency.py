@@ -30,6 +30,11 @@ VIDEO_FPS_TOL = 0.5
 CROSS_CAMERA_FRAME_TOL = 1
 TIMEOUT_SLACK_S = 1.0
 PLACEHOLDER_LAB_IDS = {"", "your_lab_id"}
+PLACEHOLDER_OPERATORS = {"unassigned"}   # what the Runner writes until the plan gets a real operator
+
+
+def is_placeholder_operator(name: str | None) -> bool:
+    return (name or "").strip().lower() in PLACEHOLDER_OPERATORS
 
 
 def probe_video(path: Path) -> dict[str, Any] | None:
@@ -72,6 +77,11 @@ def _metadata(header: EpisodeHeader, row: dict | None, problems: list[str], warn
     if row is not None:
         if not (row.get("operator_name") or "").strip():
             problems.append("operator_name is required (who ran the trial).")
+        elif is_placeholder_operator(row.get("operator_name")):
+            problems.append(
+                "operator_name is still the placeholder 'Unassigned': set who actually ran the trial "
+                "(edit the session plan in the Runner, or annotate again)."
+            )
         if not (row.get("annotator_name") or "").strip():
             problems.append("annotator_name is required (who labelled the episode).")
         version = row.get("schema_version") or ANNOTATION_SCHEMA_LEGACY

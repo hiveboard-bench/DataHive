@@ -15,12 +15,14 @@ from datahive.config import (
     Config,
     check_permissions,
     config_path,
+    default_repo_id,
     load_config,
     masked_dict,
     maybe_write_gitignore,
     now_iso,
     save_config,
 )
+from datahive.consistency import is_placeholder_operator
 from datahive.errors import DatahiveError
 from datahive.hub import Hub
 from datahive.index import Index
@@ -123,7 +125,7 @@ SAMPLES_OPTION = typer.Option(None, "--samples", help="Path to the samples/ dire
 @app.command()
 def init(
     lab_id: str = typer.Option(..., prompt=True),
-    repo_id: Optional[str] = typer.Option(None, help="Defaults to sua-org/{lab_id}"),
+    repo_id: Optional[str] = typer.Option(None, help="Advanced. Defaults to HiveBoard/{lab_id}"),
     token: str = typer.Option(..., prompt=True, hide_input=True, help="Hugging Face token"),
     endpoint: Optional[str] = typer.Option(None, help="Custom HF endpoint (advanced)"),
     config_dir: Optional[str] = typer.Option(
@@ -150,7 +152,7 @@ def init(
         typer.echo(f"Config already exists at {target}. Pass --force to overwrite.", err=True)
         raise typer.Exit(2)
 
-    repo_id = repo_id or f"sua-org/{lab_id}"
+    repo_id = repo_id or default_repo_id(lab_id)
     cfg = Config(
         lab_id=lab_id, repo_id=repo_id, hf_token=token,
         endpoint=endpoint, created_at=now_iso(),
@@ -312,8 +314,14 @@ def annotate(
     outcome = prompt_if_needed(outcome, f"outcome ({'/'.join(o.value for o in Outcome)})")
     attachment_id = prompt_if_needed(attachment_id, "attachment_id")
     strategy = prompt_if_needed(strategy, f"strategy ({'/'.join(s.value for s in Strategy)})")
-    operator_name = prompt_if_needed(operator_name, "operator_name", default="")
-    annotator_name = prompt_if_needed(annotator_name, "annotator_name", default="")
+    operator_name = prompt_if_needed(operator_name, "operator_name (who ran this trial)")
+    annotator_name = prompt_if_needed(annotator_name, "annotator_name (who is filling this in)")
+    if not (operator_name or "").strip() or not (annotator_name or "").strip():
+        typer.echo("operator_name and annotator_name are both required (pass --operator-name and --annotator-name).", err=True)
+        raise typer.Exit(1)
+    if is_placeholder_operator(operator_name):
+        typer.echo("operator_name cannot be the placeholder 'Unassigned': enter who actually ran the trial.", err=True)
+        raise typer.Exit(1)
     if outcome != Outcome.success.value:
         failure_cause = prompt_if_needed(
             failure_cause, f"failure_cause ({'/'.join(c.value for c in FailureCause)})"

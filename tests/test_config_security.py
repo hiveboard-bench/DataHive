@@ -20,7 +20,7 @@ from datahive.errors import ConfigInsideGitRepo, InsecureConfigPermissions
 
 
 def _cfg(token="hf_supersecrettoken1234567890"):
-    return Config(lab_id="lab_test", repo_id="sua-org/lab_test", hf_token=token, created_at="2026-01-01T00:00:00+00:00")
+    return Config(lab_id="lab_test", repo_id="HiveBoard/lab_test", hf_token=token, created_at="2026-01-01T00:00:00+00:00")
 
 
 def test_config_written_with_0600(tmp_path):
@@ -178,3 +178,9 @@ def test_token_never_appears_in_cli_stdout_stderr(tmp_path, monkeypatch):
 
     result2 = runner.invoke(app, ["list", "--samples", str(tmp_path / "samples")])
     assert token not in result2.stdout
+
+
+def test_init_defaults_repo_to_hiveboard_org(tmp_path):
+    from datahive.config import default_repo_id
+
+    assert default_repo_id("my_lab") == "HiveBoard/my_lab"

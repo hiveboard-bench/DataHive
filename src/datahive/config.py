@@ -59,6 +59,9 @@ class Config:
     endpoint: str | None = None
     created_at: str = ""
 
+    def __post_init__(self) -> None:
+        self.repo_id = default_repo_id(self.lab_id) if self.lab_id else ""
+
     def to_dict(self, *, reveal_token: bool = True) -> dict:
         return {
             "lab_id": self.lab_id,
@@ -167,11 +170,10 @@ def load_config(*, path: Path | None = None) -> Config:
     check_permissions(target)
     raw = yaml.safe_load(target.read_text(encoding="utf-8")) or {}
     lab_id = raw.get("lab_id", "")
-    repo_id = raw.get("repo_id") or (default_repo_id(lab_id) if lab_id else "")
     hf_token = raw.get("hf_token") or raw.get("huggingface_token", "")
     return Config(
         lab_id=lab_id,
-        repo_id=repo_id,
+        repo_id=default_repo_id(lab_id) if lab_id else "",
         hf_token=hf_token,
         endpoint=raw.get("endpoint"),
         created_at=raw.get("created_at", ""),

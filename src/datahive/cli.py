@@ -126,7 +126,6 @@ SAMPLES_OPTION = typer.Option(None, "--samples", help="Path to the samples/ dire
 @app.command()
 def init(
     lab_id: str = typer.Option(..., prompt=True),
-    repo_id: Optional[str] = typer.Option(None, help="Advanced. Defaults to HiveBoard/{lab_id}"),
     token: str = typer.Option(..., prompt=True, hide_input=True, help="Hugging Face token"),
     endpoint: Optional[str] = typer.Option(None, help="Custom HF endpoint (advanced)"),
     config_dir: Optional[str] = typer.Option(
@@ -153,9 +152,8 @@ def init(
         typer.echo(f"Config already exists at {target}. Pass --force to overwrite.", err=True)
         raise typer.Exit(2)
 
-    repo_id = repo_id or default_repo_id(lab_id)
     cfg = Config(
-        lab_id=lab_id, repo_id=repo_id, hf_token=token,
+        lab_id=lab_id, repo_id=default_repo_id(lab_id), hf_token=token,
         endpoint=endpoint, created_at=now_iso(),
     )
 

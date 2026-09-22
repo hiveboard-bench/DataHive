@@ -55,6 +55,13 @@ while True:
 
 Trials are saved as rows of `samples/<session>/trials.csv`; all times are stored in UTC.
 
+## Example: a full robot integration
+
+[**fr3_datahive**](https://github.com/hiveboard-bench/fr3_datahive) collects DataHive episodes
+with a Franka Research 3: a ready-to-run Docker container (ROS 1 Noetic, libfranka, franka_ros,
+joystick teleop) that implements the robot side of both Manual and Automatic collection above.
+Use it as a reference for wiring up `CollectClient` / `EpisodeWriter` against a real robot loop.
+
 ## AI assistant skills
 
 Two skills for AI coding assistants (e.g. Claude Code) live in `src/datahive/skills/`:

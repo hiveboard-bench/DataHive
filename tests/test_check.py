@@ -90,7 +90,7 @@ def test_check_episode_timestamp_gap(samples_root):
             ee_state=np.array([1.0]),
             provenance=prov,
         )
-        writer.append_command(timestamp=t, target=np.zeros(6), control_mode="joint_position")
+        writer.append_command(timestamp=t, target=np.zeros(7), control_mode="joint_position")
     
     stub = samples_root / "_stub.mp4"
     stub.write_bytes(b"\x00" * 64)
@@ -171,7 +171,7 @@ def test_check_catches_what_validate_would(samples_root):
 
     h5 = make_episode(samples_root, "sess1", "nan", profile=profile, rate_hz=100.0, n_points=150)
     with h5py.File(h5, "r+") as f:
-        f["proprioception/joint_position"][3] = np.nan
+        f["observations/robot_states/joint_position"][3] = np.nan
     report = check_episode(samples_root, "nan")
     assert report["ok"] is False
     assert any("NaN" in p for p in report["problems"])

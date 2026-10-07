@@ -10,7 +10,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from huggingface_hub import HfApi
-from huggingface_hub.utils import HfHubHTTPError
+from huggingface_hub.utils import EntryNotFoundError, HfHubHTTPError
 
 from datahive.config import Config
 from datahive.errors import HubError
@@ -91,8 +91,10 @@ class Hub:
                 token=self.cfg.hf_token,
             )
             return Path(local).read_text(encoding="utf-8")
-        except Exception:
+        except EntryNotFoundError:
             return None
+        except Exception as e:
+            raise HubError(f"Could not download {remote_path}: {e}") from e
 
     def delete_paths(self, paths: list[str], *, commit_message: str) -> str:
         if not paths:

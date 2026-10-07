@@ -14,7 +14,7 @@ import h5py
 import numpy as np
 
 from datahive.consistency import MAX_DURATION_S, MIN_DURATION_S, _trajectories, _videos
-from datahive.episode import episode_stats, read_header, sample_rate_hz
+from datahive.episode import episode_stats, group_path, read_header, sample_rate_hz
 from datahive.errors import DatahiveError, EpisodeNotFound
 from datahive.paths import resolve_episode_paths
 from datahive.profile import camera_consistency_problems, load_profile
@@ -27,7 +27,7 @@ def check_episode(samples_root: Path, episode_id: str) -> dict[str, Any]:
     Checks:
       1. HDF5 exists and is a valid readable file.
       2. Episode header attributes parse and contain required hardware metadata.
-      3. /proprioception/timestamp exists, has >= 2 steps, and is monotonically increasing.
+      3. /observations/robot_states/timestamp exists, has >= 2 steps, and is monotonically increasing.
       4. Proprioception sample rate meets the HiveBoard 100 Hz minimum.
       5. No severe timestamp dropouts/gaps.
       6. Recorded arrays are finite and aligned; the episode lasts 1 to 600 s.
@@ -101,11 +101,12 @@ def check_episode(samples_root: Path, episode_id: str) -> dict[str, Any]:
     # 2. Proprioception datasets & timestamp sanity
     try:
         with h5py.File(paths.h5, "r") as f:
-            proprio = f.get("proprioception")
+            proprio_path = group_path(f, "robot_states")
+            proprio = f.get(proprio_path)
             if proprio is None:
-                problems.append("Missing /proprioception group in HDF5 file.")
+                problems.append("Missing /observations/robot_states group in HDF5 file.")
             elif "timestamp" not in proprio:
-                problems.append("Missing /proprioception/timestamp dataset.")
+                problems.append("Missing /observations/robot_states/timestamp dataset.")
             else:
                 ts = np.asarray(proprio["timestamp"][:]).reshape(-1)
                 n_steps = int(len(ts))
@@ -140,7 +141,7 @@ def check_episode(samples_root: Path, episode_id: str) -> dict[str, Any]:
         problems.append(f"Error inspecting datasets in {paths.h5}: {e}")
 
     duration = _trajectories(paths.h5, header, problems_traj := [])
-    problems.extend(p for p in problems_traj if not p.startswith("Missing /proprioception"))
+    problems.extend(p for p in problems_traj if not p.startswith(("Missing /proprioception", "Missing /observations/robot_states")))
     if duration is not None and not (MIN_DURATION_S <= duration <= MAX_DURATION_S):
         problems.append(
             f"Episode lasts {duration:.2f}s; it must be between {MIN_DURATION_S:.0f} and {MAX_DURATION_S:.0f} s."

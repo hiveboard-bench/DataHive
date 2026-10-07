@@ -12,6 +12,7 @@ import h5py
 import numpy as np
 
 from datahive.attachments import load_registry
+from datahive.episode import _action_widths, group_path
 from datahive.paths import EpisodePaths
 from datahive.schema import (
     ANNOTATION_SCHEMA_LEGACY,
@@ -122,8 +123,8 @@ def _trajectories(h5_path: Path, header: EpisodeHeader, problems: list[str]) -> 
     lengths: dict[str, int] = {}
     try:
         with h5py.File(h5_path, "r") as f:
-            for group_name in ("proprioception", "commands"):
-                grp = f.get(group_name)
+            for group_name, canonical in (("observations/robot_states", "robot_states"), ("actions", "actions")):
+                grp = f.get(group_path(f, canonical))
                 if grp is None:
                     problems.append(f"Missing /{group_name} group.")
                     continue
@@ -139,15 +140,40 @@ def _trajectories(h5_path: Path, header: EpisodeHeader, problems: list[str]) -> 
                         problems.append(f"/{group_name}/{name} is not numeric.")
                     elif np.issubdtype(arr.dtype, np.floating) and not np.isfinite(arr).all():
                         problems.append(f"/{group_name}/{name} contains NaN or infinite values.")
-                if group_name == "commands" and header.action_joint_names and "target" in grp:
-                    joint_actions = {"joint_position", "joint_velocity"} & set(header.action_space)
-                    width = grp["target"].shape[-1] if grp["target"].ndim > 1 else 1
-                    if joint_actions and width != len(header.action_joint_names):
-                        problems.append(
-                            f"/commands/target has {width} values per step but the profile lists "
-                            f"{len(header.action_joint_names)} action joint names."
-                        )
-                if group_name == "proprioception" and "timestamp" in grp and grp["timestamp"].shape[0] >= 2:
+                    elif name in {"joint_binary", "gripper_binary"} and not np.isin(arr, [0, 1]).all():
+                        problems.append(f"/{group_name}/{name} contains values other than 0 or 1.")
+                if canonical == "actions":
+                    try:
+                        widths = _action_widths(header)
+                        if "target" in grp:  # Flat-vector layout used by older episodes.
+                            width = grp["target"].shape[-1] if grp["target"].ndim > 1 else 1
+                            expected = len(header.action_joint_names) or sum(
+                                int(v) for v in widths.values() if v is not None
+                            )
+                            if header.action_joint_names and width != expected:
+                                problems.append(
+                                    f"/actions/target has {width} values per step but the profile lists "
+                                    f"{expected} action joint names."
+                                )
+                            elif not header.action_joint_names and not any(v is None for v in widths.values()) and width != expected:
+                                problems.append(
+                                    f"/actions/target has {width} values per step but action_space requires {expected}."
+                                )
+                        else:
+                            for action, expected_width in widths.items():
+                                if action not in grp:
+                                    problems.append(f"Missing /actions/{action} dataset from action_space.")
+                                    continue
+                                ds = grp[action]
+                                actual_width = ds.shape[-1] if ds.ndim > 1 else 1
+                                if expected_width is not None and actual_width != expected_width:
+                                    problems.append(
+                                        f"/actions/{action} has {actual_width} value(s) per step; "
+                                        f"expected {expected_width}."
+                                    )
+                    except ValueError as e:
+                        problems.append(f"Could not validate action datasets: {e}")
+                if canonical == "robot_states" and "timestamp" in grp and grp["timestamp"].shape[0] >= 2:
                     ts = np.asarray(grp["timestamp"][:]).reshape(-1)
                     duration = float(ts[-1] - ts[0])
                     joints = header.manipulator.get("joint_names") or []
@@ -296,7 +322,8 @@ def missing_parts(paths: EpisodePaths, header: EpisodeHeader) -> list[str]:
     missing: list[str] = []
     try:
         with h5py.File(paths.h5, "r") as f:
-            if "proprioception" not in f or "timestamp" not in f["proprioception"]:
+            state_path = group_path(f, "robot_states")
+            if state_path not in f or "timestamp" not in f[state_path]:
                 missing.append("HDF5 recording data")
     except OSError:
         missing.append("HDF5 recording data")

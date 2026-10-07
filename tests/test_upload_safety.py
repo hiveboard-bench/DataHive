@@ -69,6 +69,27 @@ def test_upload_stamps_uploaded_at_and_stays_unchanged(samples_root, filled_prof
     assert not again.uploaded and "unchanged" in again.skipped_reason
 
 
+def test_remote_trials_read_error_aborts_upload_without_replacing_csv(
+    samples_root, filled_profile, fake_hub, monkeypatch
+):
+    from datahive.errors import HubError
+
+    _ready(samples_root, filled_profile)
+    paths = resolve_episode_paths(samples_root, "ep1")
+    before = paths.trials_csv.read_bytes()
+
+    def fail_download(_remote_path):
+        raise HubError("network unavailable")
+
+    monkeypatch.setattr(fake_hub, "download_text", fail_download)
+    result = ops.upload_episode(samples_root, "ep1", hub=fake_hub)
+
+    assert not result.uploaded
+    assert "network unavailable" in result.error
+    assert paths.trials_csv.read_bytes() == before
+    assert not any(call["path_in_repo"] == "s/trials.csv" for call in fake_hub._fake_api.upload_calls)
+
+
 def test_directory_guard_blocks_upload_and_suggests_split(samples_root, filled_profile, fake_hub, monkeypatch):
     _ready(samples_root, filled_profile)
     monkeypatch.setattr(hf_limits, "HF_DIR_FILE_LIMIT", 1)

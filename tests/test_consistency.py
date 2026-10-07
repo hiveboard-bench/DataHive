@@ -97,14 +97,14 @@ def test_duration_too_short(samples_root, filled_profile):
 def test_nan_in_trajectory(samples_root, filled_profile):
     _ready(samples_root, filled_profile)
     with h5py.File(resolve_episode_paths(samples_root, "ep1").h5, "r+") as f:
-        f["proprioception/joint_position"][3, 0] = np.nan
+        f["observations/robot_states/joint_position"][3, 0] = np.nan
     assert "NaN or infinite" in _problems(samples_root)
 
 
 def test_arrays_must_share_length(samples_root, filled_profile):
     _ready(samples_root, filled_profile)
     with h5py.File(resolve_episode_paths(samples_root, "ep1").h5, "r+") as f:
-        f["commands/target"].resize(150, axis=0)
+        f["actions/gripper_binary"].resize(150, axis=0)
     assert "same number of steps" in _problems(samples_root)
 
 

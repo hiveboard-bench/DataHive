@@ -17,7 +17,7 @@ import yaml
 from datahive.errors import ProfileIncomplete, ProfileMissing
 from datahive.paths import profile_path
 
-ARM_ACTIONS = ("joint_position", "joint_velocity", "cartesian_position", "cartesian_velocity")
+ARM_ACTIONS = ("joint_position", "joint_velocity", "joint_binary", "cartesian_position", "cartesian_velocity")
 GRIPPER_ACTIONS = ("gripper_position", "gripper_velocity", "gripper_binary")
 BASE_ACTIONS = ("base_velocity", "base_position")
 
@@ -58,7 +58,7 @@ SKELETON: dict[str, Any] = {
     "gains": None,  # optional: {joint_position: {kp, kd}} | {joint_velocity: {kv}} | {osc: {kp_pos, kd_pos, kp_ori, kd_ori}}
     "intrinsic_calibration_matrix": None,  # optional: {camera: 3x3}
     "extrinsic_calibration_matrix": None,  # optional: {camera: 4x4}
-    "action_space": [],  # REQUIRED: what the policy outputs, e.g. [joint_position, gripper_binary]
+    "action_space": [],  # REQUIRED: e.g. [joint_position, gripper_binary]; each field is stored separately
     "manipulator": {
         "model": None,
         "dof": None,  # derived from len(joint_names)
@@ -447,11 +447,11 @@ def incompleteness_problems(raw: dict[str, Any]) -> list[str]:
     if joint_names and len({n.casefold() for n in joint_names}) != len(joint_names):
         problems.append("manipulator.joint_names contains duplicates.")
     space = raw.get("action_space") or []
-    if {"joint_position", "joint_velocity"} & set(space):
+    if {"joint_position", "joint_velocity", "joint_binary"} & set(space):
         if not joint_names:
-            problems.append("robot_state_joint_names (the joint names) are required when action_space contains joint_position or joint_velocity.")
+            problems.append("robot_state_joint_names (the joint names) are required when action_space contains a joint action.")
         if not action_names:
-            problems.append("action_joint_names are required when action_space contains joint_position or joint_velocity.")
+            problems.append("action_joint_names are required when action_space contains a joint action.")
     problems.extend(gains_problems(raw.get("gains"), joint_names))
     problems.extend(calibration_problems(raw))
     ee = raw.get("end_effector") or {}

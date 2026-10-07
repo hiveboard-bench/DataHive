@@ -55,10 +55,12 @@ samples/
 
 DataHive finds episodes by scanning `samples/*/episodes/*.h5`, so copying files in is enough.
 Episodes brought in through the GUI (Runner manual mode, or Annotate > **Upload episode**) are
-more forgiving: the `.h5` only needs `/proprioception` (with `timestamp`) and `/commands`;
+more forgiving: the `.h5` only needs `/observations/robot_states` (with `timestamp`) and `/actions`;
 DataHive rebuilds the header from the robot profile and the session, and renames the files to
 `<session_id>_t<trial_id>.h5` / `..._cam_<camera>.mp4`. Files copied in by hand must already be
 complete and correctly named.
+Each state signal is stored as its own dataset under `/observations/robot_states` (for example,
+`joint_position` and `joint_velocity`), with one row per recording tick.
 Read `reference/layout-and-format.md` for the exact contents, names and numeric limits.
 
 ## Rules

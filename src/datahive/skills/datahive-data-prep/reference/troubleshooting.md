@@ -16,7 +16,7 @@ and annotation rules.
 | `Could not read header` | File is not a DataHive `.h5`, is truncated (recording crashed before `close()`), or was written without `EpisodeWriter`. Re-record or re-convert. |
 | `Header has no low_level.mode` | Profile lacked `low_level.mode`. Fix the profile; episodes already written keep the blank, so re-create them. |
 | `Header lists no cameras` | Profile `cameras` was empty when the episode was created. |
-| `Missing /proprioception group` / `timestamp dataset` | State was never appended. |
+| `Missing /observations/robot_states group` / `timestamp dataset` | State was never appended. |
 | `only N step(s); minimum is 2` | Recording too short or loop never ran. |
 | `timestamps not increasing` / `not monotonically increasing` | Mixed clocks (wall + monotonic), unsorted rows, or a clock reset. Use one monotonic clock. |
 | `sample rate is X Hz, below the required 100 Hz` | Loop or logger too slow. Log on the control thread at >= 100 Hz, or record the source at its native rate. Slow sources cannot be submitted. |
@@ -39,7 +39,7 @@ and annotation rules.
 | `/group/name is empty` / `not numeric` / `contains NaN` | Sensor dropout or bad conversion. Fix the source; do not zero-fill. |
 | `Arrays do not share the same number of steps` | Proprioception and commands logged on different ticks, or one dataset appended conditionally. |
 | `joint_position has N DOF but the header lists M joint names` | `manipulator.joint_names` wrong, or fewer/more values written. |
-| `/commands/target has N values per step but the profile lists M action joint names` | `action_joint_names` does not match the action vector width. |
+| `/actions/<action> has N values per step; expected M` | The named dataset width does not match the arm, gripper, or Cartesian dimensions in the episode header. |
 | `Episode lasts Xs; it must be between 1 and 600 s` | Trim to the trial, or split runs that were recorded together. |
 | `Camera 'X' video is WxH; each side must be between 180 and 1280 px` | Re-encode. |
 | `video is WxH but the episode header records ...` / `fps but the header records` | Header was hand-written or video re-encoded after `attach_video`. Call `attach_video` again on the final file. |

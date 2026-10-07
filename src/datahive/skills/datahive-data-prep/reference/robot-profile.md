@@ -21,7 +21,7 @@ Ask the user for the values; do not guess a robot's DOF, control mode or camera 
 | `policy` | who/what drives the robot: `teleop_spacemouse`, `vla_pi0`, `diffusion_policy`, ... (override per episode with `EpisodeWriter(policy=...)`) |
 | `manipulator.model` | follows `robot_name` |
 | `manipulator.joint_names` | required if `action_space` has a joint action; `dof` is derived |
-| `action_joint_names` | required if `action_space` has a joint action; what each index of the action vector is |
+| `action_joint_names` | required if `action_space` has a joint action; names of the commanded arm joints |
 | `end_effector.type` | `gripper` \| `dexterous_hand` \| `prosthetic_hand` \| `other` (`other` needs `type_description`) |
 | `end_effector.actuated_dof` | whole number >= 1 |
 | `end_effector.command_modality` | `binary` \| `position` \| `velocity` |
@@ -32,11 +32,12 @@ Ask the user for the values; do not guess a robot's DOF, control mode or camera 
 
 Choose from:
 
-- arm (>= 1): `joint_position`, `joint_velocity`, `cartesian_position`, `cartesian_velocity`
+- arm (>= 1): `joint_position`, `joint_velocity`, `joint_binary`, `cartesian_position`, `cartesian_velocity`
 - gripper (>= 1): `gripper_position`, `gripper_velocity`, `gripper_binary`
 - base (<= 1): `base_velocity`, `base_position` — required if `uses_mobile_base: true`
 
-Example: `[joint_position, gripper_binary]`. The order defines how `/commands/target` is laid out.
+Example: `[joint_position, gripper_binary]`. The order defines how a flat command vector is
+split by `EpisodeWriter`; the HDF5 stores each component under its own name in `/actions`.
 
 ## Orientation
 

@@ -15,6 +15,13 @@ const statsBody = document.getElementById("statsBody");
 const statsCloseBtn = document.getElementById("statsCloseBtn");
 const taskOverlay = document.getElementById("taskOverlay");
 const taskCloseBtn = document.getElementById("taskCloseBtn");
+let taskOverlayOnClose = null;
+function closeTaskOverlay() {
+  taskOverlay.classList.add("hidden");
+  const onClose = taskOverlayOnClose;
+  taskOverlayOnClose = null;
+  if (onClose) onClose();
+}
 const failureHelpOverlay = document.getElementById("failureHelpOverlay");
 const failureHelpCloseBtn = document.getElementById("failureHelpCloseBtn");
 const toastContainer = document.getElementById("toastContainer");
@@ -517,6 +524,7 @@ function setTaskOverlayTitle(text, intro) {
 }
 
 function openTaskPicker(attachments, currentId, onSelect) {
+  taskOverlayOnClose = null;
   const grid = document.getElementById("taskGrid");
   setTaskOverlayTitle("Select task");
   grid.innerHTML = taskGroupsHtml(attachments, (id, info) => taskCardHtml(id, info, id === currentId));
@@ -535,13 +543,14 @@ function openTaskPicker(attachments, currentId, onSelect) {
 function openTaskPickerMulti(attachments, selectedIds, onDone) {
   const grid = document.getElementById("taskGrid");
   const chosen = new Set(selectedIds);
+  taskOverlayOnClose = () => onDone(Object.keys(attachments).filter((id) => chosen.has(id)));
   setTaskOverlayTitle("Select tasks", "Choose the tasks to include in this session. Click a card to add or remove it, then press Done.");
-  grid.innerHTML = `
+  grid.innerHTML = taskGroupsHtml(attachments, (id, info) => taskCardHtml(id, info, chosen.has(id))) + `
     <div class="task-multi-bar">
       <span id="taskMultiCount"></span>
-      <span><button type="button" id="taskMultiAll">All</button> <button type="button" id="taskMultiNone">None</button>
-      <button type="button" class="primary" id="taskMultiDone">Done</button></span>
-    </div>` + taskGroupsHtml(attachments, (id, info) => taskCardHtml(id, info, chosen.has(id)));
+      <span class="task-multi-actions"><button type="button" id="taskMultiAll">All</button><button type="button" id="taskMultiNone">None</button>
+      <button type="button" class="task-multi-done" id="taskMultiDone">Done</button></span>
+    </div>`;
   const cards = () => grid.querySelectorAll(".task-card");
   const refresh = () => {
     cards().forEach((c) => c.classList.toggle("selected", chosen.has(c.dataset.taskId)));
@@ -555,8 +564,7 @@ function openTaskPickerMulti(attachments, selectedIds, onDone) {
   document.getElementById("taskMultiAll").onclick = () => { Object.keys(attachments).forEach((id) => chosen.add(id)); refresh(); };
   document.getElementById("taskMultiNone").onclick = () => { chosen.clear(); refresh(); };
   document.getElementById("taskMultiDone").onclick = () => {
-    taskOverlay.classList.add("hidden");
-    onDone(Object.keys(attachments).filter((id) => chosen.has(id)));
+    closeTaskOverlay();
   };
   refresh();
   taskOverlay.classList.remove("hidden");
@@ -883,6 +891,7 @@ function datasetInfoHtml(fields) {
   const entries = Object.entries(fields || {});
   if (!entries.length) return `<p class="empty-hint">None recorded.</p>`;
   return `<dl class="kv-list">${entries.map(([name, info]) => {
+    if (info.value != null) return `<dt>${escapeHtml(name)}</dt><dd>${escapeHtml(info.value)}</dd>`;
     const shape = `[${info.shape.join(", ")}]`;
     const value = `${shape} · ${info.dtype}${info.provenance ? ` · ${info.provenance}` : ""}`;
     return `<dt>${escapeHtml(name)}</dt><dd>${escapeHtml(value)}</dd>`;
@@ -893,18 +902,21 @@ function datasetInfoHtml(fields) {
 // the Overview heading (not inside the collapsible body, so it's visible
 // even while collapsed).
 function overviewSummaryText(data) {
-  const proprio = (data.dataset_info && data.dataset_info.proprioception) || {};
-  const commands = (data.dataset_info && data.dataset_info.commands) || {};
-  return `${Object.keys(proprio).length} state key(s) · ${Object.keys(commands).length} action key(s)`;
+  const observations = (data.dataset_info && data.dataset_info.observations) || {};
+  const states = observations.robot_states || {};
+  const actions = (data.dataset_info && data.dataset_info.actions) || {};
+  return `${Object.keys(states).length} state key(s) · ${Object.keys(actions).length} action key(s)`;
 }
 
 function renderOverview(data) {
   const header = data.header;
   const stats = data.stats || {};
   const ann = data.annotation || {};
-  const proprio = (data.dataset_info && data.dataset_info.proprioception) || {};
-  const commands = (data.dataset_info && data.dataset_info.commands) || {};
-  const videoPaths = (header.cameras || []).filter((c) => c.file);
+  const observations = (data.dataset_info && data.dataset_info.observations) || {};
+  const robotStates = observations.robot_states || {};
+  const actions = (data.dataset_info && data.dataset_info.actions) || {};
+  const videoPaths = observations.video_paths || {};
+  const videoEntries = Object.entries(videoPaths);
 
   const attributes = [
     ["episode_id", header.episode_id], ["session_id", header.session_id],
@@ -942,13 +954,15 @@ function renderOverview(data) {
     ${kvListHtml(robotProfile)}
 
     <h4 class="overview-section">observations/robot_states (shape · dtype)</h4>
-    ${datasetInfoHtml(proprio)}
+    ${datasetInfoHtml(robotStates)}
 
     <h4 class="overview-section">actions (shape · dtype)</h4>
-    ${datasetInfoHtml(commands)}
+    ${datasetInfoHtml(actions)}
 
     <h4 class="overview-section">observations/video_paths</h4>
-    ${kvListHtml(videoPaths.length ? videoPaths.map((c) => [c.name, c.file]) : [])}
+    ${kvListHtml(videoEntries.length
+      ? videoEntries.map(([name, info]) => [name, info.value || info.dtype])
+      : (header.cameras || []).filter((c) => c.file).map((c) => [c.name, c.file]))}
 
     <h4 class="overview-section">Other</h4>
     ${kvListHtml(other)}
@@ -1690,6 +1704,7 @@ const IC_BOARD = `<svg width="22" height="22" viewBox="0 0 24 24" fill="none" st
 const ARM_ACTIONS = {
   joint_position: "Absolute joint angles",
   joint_velocity: "Joint velocities",
+  joint_binary: "Binary command per joint (0 or 1)",
   cartesian_position: "End-effector pose (position + orientation)",
   cartesian_velocity: "End-effector twist (linear + angular velocity)",
 };
@@ -1797,7 +1812,7 @@ function updateProfileProgress(form) {
   if (baseField) baseField.hidden = !mobile;
   const picked = new Set(Array.from(form.querySelectorAll('input[name="action_space"]:checked')).map((i) => i.value));
   const anyOf = (opts) => Object.keys(opts).some((k) => picked.has(k));
-  const jointAction = picked.has("joint_position") || picked.has("joint_velocity");
+  const jointAction = ["joint_position", "joint_velocity", "joint_binary"].some((name) => picked.has(name));
   const actionJoints = String(val("action_joint_names")).split(",").map((x) => x.trim()).filter(Boolean);
   const jm = document.getElementById("jointNamesMark"), am = document.getElementById("actionJointMark");
   if (jm) jm.hidden = !jointAction;
@@ -1900,7 +1915,7 @@ function renderProfileForm(profile, problems, exists) {
           <label class="full" data-tooltip="Control frequency in Hz: how often commands are sent and states are recorded. The recorded rate is checked against it.">${fieldLabel("Control frequency (Hz)")}
             <input name="control_freq" type="number" min="1" step="any" value="${profile.control_freq ?? ""}" placeholder="e.g. 100">
           </label>
-          <label class="full" data-tooltip="Robot state joint names: what each index of the joint state is. Required when the action space has joint_position or joint_velocity."><span class="field-label-text">Robot state joint names (comma-separated, in order)<span class="required-mark" id="jointNamesMark" title="Required with a joint action" hidden>*</span></span>
+          <label class="full" data-tooltip="Robot state joint names: what each index of the joint state is. Required when the action space has a joint action."><span class="field-label-text">Robot state joint names (comma-separated, in order)<span class="required-mark" id="jointNamesMark" title="Required with a joint action" hidden>*</span></span>
             <input name="manipulator.joint_names" value="${escapeHtml((m.joint_names || []).join(", "))}" placeholder="e.g. panda_joint1, panda_joint2, …">
           </label>
           <div class="full derived-line">Degrees of freedom: <b id="dofReadout"></b></div>
@@ -1909,7 +1924,7 @@ function renderProfileForm(profile, problems, exists) {
         <div class="field-grid">
           <label class="full">${fieldLabel("Arm action (one or more)")}${actionChipsHtml(ARM_ACTIONS, profile.action_space || [])}</label>
           <label class="full">${fieldLabel("Gripper action (one or more)")}${actionChipsHtml(GRIPPER_ACTIONS, profile.action_space || [])}</label>
-          <label class="full" data-tooltip="Names of the entries of the joint action vector, in order. Required when the action space has joint_position or joint_velocity."><span class="field-label-text">Action joint names (comma-separated, in order)<span class="required-mark" id="actionJointMark" title="Required with a joint action" hidden>*</span></span>
+          <label class="full" data-tooltip="Names of the commanded arm joints. Required when the action space has a joint action."><span class="field-label-text">Action joint names (comma-separated, in order)<span class="required-mark" id="actionJointMark" title="Required with a joint action" hidden>*</span></span>
             <input name="action_joint_names" value="${escapeHtml((profile.action_joint_names || []).join(", "))}" placeholder="e.g. panda_joint1, panda_joint2, …">
           </label>
           <label class="full" id="baseActionField" ${profile.uses_mobile_base === true ? "" : "hidden"} data-tooltip="Wheeled mobile platform: pick at most one base command.">${fieldLabel("Base command (at most one)")}
@@ -2294,9 +2309,9 @@ if (statsOverlay) {
   });
 }
 
-taskCloseBtn.addEventListener("click", () => taskOverlay.classList.add("hidden"));
+taskCloseBtn.addEventListener("click", closeTaskOverlay);
 taskOverlay.addEventListener("click", (e) => {
-  if (e.target === taskOverlay) taskOverlay.classList.add("hidden");
+  if (e.target === taskOverlay) closeTaskOverlay();
 });
 
 function openFailureHelpOverlay() {
@@ -2395,7 +2410,7 @@ window.addEventListener("keydown", (e) => {
       return;
     }
     if (taskOverlay && !taskOverlay.classList.contains("hidden")) {
-      taskOverlay.classList.add("hidden");
+      closeTaskOverlay();
       return;
     }
   }

@@ -13,7 +13,7 @@ from datahive.attachments import is_composed_assembly
 from datahive.episode import read_header
 from datahive.errors import AnnotationError
 from datahive.paths import resolve_episode_paths
-from datahive.schema import ANNOTATION_SCHEMA_CURRENT, TrialAnnotation
+from datahive.schema import ANNOTATION_SCHEMA_CURRENT, TRIAL_COLUMNS, TrialAnnotation
 from datahive.trials import upsert_row
 
 
@@ -95,22 +95,45 @@ def _annotator_key(name: str) -> str:
 def write_h5_annotation(h5_path: Path, annotation: TrialAnnotation) -> None:
     """Stores the annotation inside the episode as
     episode_annotations/<annotator>/ (attrs), stamped with schema_version, so
-    the file stays self-describing if trials.csv is lost or the episode moved."""
+    the file stays self-describing if trials.csv is lost or the episode moved.
+    Also upgrades legacy trajectory group names to the current HDF5 layout."""
     import json
 
     import h5py
+    from datahive.episode import canonicalize_layout, write_video_paths
 
     row = annotation.to_csv_row()
     key = _annotator_key(annotation.annotator_name)
     with h5py.File(h5_path, "r+") as f:
+        canonicalize_layout(f)
+        cameras = f.attrs.get("cameras", "[]")
+        if isinstance(cameras, bytes):
+            cameras = cameras.decode("utf-8")
+        try:
+            write_video_paths(f, json.loads(cameras))
+        except (TypeError, ValueError):
+            pass
         root = f.require_group("episode_annotations")
+        # Unpack any annotations written by older versions while touching this episode.
+        for existing in root.values():
+            if "annotation" not in existing.attrs:
+                continue
+            try:
+                old_row = json.loads(existing.attrs["annotation"])
+            except (TypeError, ValueError):
+                old_row = {}
+            for field, value in old_row.items():
+                if field in TRIAL_COLUMNS and field not in existing.attrs:
+                    existing.attrs[field] = value
+            del existing.attrs["annotation"]
         if key in root:
             del root[key]
         grp = root.create_group(key)
         grp.attrs["schema_version"] = annotation.schema_version
         grp.attrs["source"] = "human"
         grp.attrs["timestamp"] = row["annotated_at"]
-        grp.attrs["annotation"] = json.dumps(row, sort_keys=True)
+        for field, value in row.items():
+            grp.attrs[field] = value
 
 
 def read_h5_annotations(h5_path: Path) -> dict[str, dict]:
@@ -128,10 +151,22 @@ def read_h5_annotations(h5_path: Path) -> dict[str, dict]:
         if root is None:
             return out
         for name, grp in root.items():
-            try:
-                row = json.loads(grp.attrs.get("annotation", "{}"))
-            except (TypeError, ValueError):
+            if "annotation" in grp.attrs:  # Legacy format: all fields packed into one JSON attribute.
+                try:
+                    row = json.loads(grp.attrs.get("annotation", "{}"))
+                except (TypeError, ValueError):
+                    row = {}
+            else:
                 row = {}
+                for field in TRIAL_COLUMNS:
+                    if field not in grp.attrs:
+                        continue
+                    value = grp.attrs[field]
+                    if isinstance(value, bytes):
+                        value = value.decode("utf-8")
+                    elif hasattr(value, "item"):
+                        value = value.item()
+                    row[field] = value
             row["schema_version"] = grp.attrs.get("schema_version") or row.get("schema_version") or ANNOTATION_SCHEMA_LEGACY
             out[name] = row
     return out

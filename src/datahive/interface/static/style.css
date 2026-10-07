@@ -214,6 +214,12 @@ button:focus-visible { outline: none; box-shadow: 0 0 0 3px color-mix(in srgb, v
 input:disabled { background: rgba(128,128,128,0.08); color: var(--muted); cursor: not-allowed; }
 button.primary { background: transparent; border-color: var(--accent); color: var(--accent); }
 button.primary:hover { background: var(--accent); color: #fff; }
+.task-multi-done { background: #2563eb; border-color: #2563eb; color: #fff; }
+.task-multi-done:hover { background: #1d4ed8; border-color: #1d4ed8; }
+.task-multi-actions { display: flex; align-items: center; gap: 0.45rem; }
+.task-multi-bar { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.task-multi-actions button { height: 2.7rem; box-sizing: border-box; }
+.task-multi-done { margin-left: 0.4rem; min-width: 6.5rem; padding: 0.65rem 1.2rem; font-size: 1rem; font-weight: 700; }
 button.danger { background: transparent; border-color: var(--danger); color: var(--danger); }
 button.danger:hover { background: var(--danger); color: #fff; }
 

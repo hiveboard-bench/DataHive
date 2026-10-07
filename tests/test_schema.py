@@ -152,7 +152,7 @@ def test_annotation_errors_are_readable(samples_root, filled_profile):
 
     from datahive.annotate import annotate_episode
     from datahive.errors import AnnotationError
-    from tests.conftest import make_episode
+    from conftest import make_episode
 
     root = samples_root
     make_episode(root, "s", "e1", trial_id="1", profile=filled_profile)
@@ -167,7 +167,7 @@ def test_validate_rejects_placeholder_operator(samples_root, filled_profile):
     """The Runner's default 'Unassigned' operator must be replaced before an episode can validate."""
     from datahive.errors import ValidationError
     from datahive.validate import validate_episode
-    from tests.conftest import make_episode, write_valid_annotation
+    from conftest import make_episode, write_valid_annotation
 
     make_episode(samples_root, "s", "e1", trial_id="1", profile=filled_profile)
     write_valid_annotation(samples_root, "s", "1", operator_name="Unassigned")

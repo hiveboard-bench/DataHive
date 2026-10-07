@@ -963,7 +963,8 @@ def test_cartesian_path_only_for_cartesian_position(samples_root):
     assert client.get("/api/episodes/ep1/cartesian-path").json() == {"points": [], "n": 0}
 
     import dataclasses
-    profile = dataclasses.replace(profile, action_space=["cartesian_position", "gripper_binary"])
+    profile = dataclasses.replace(profile, action_space=["cartesian_position", "gripper_binary"],
+                                  orientation_representation="quat", robot_state_orientation_representation="quat")
     make_episode(samples_root, "sess1", "ep2", trial_id="t2", profile=profile, n_points=50)
     data = client.get("/api/episodes/ep2/cartesian-path").json()
     assert data["n"] == 50 and len(data["points"][0]) == 3

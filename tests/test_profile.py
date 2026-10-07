@@ -150,6 +150,167 @@ def test_episode_header_merges_profile_and_episode_fields(samples_root, filled_p
     assert header.cameras[0]["file"] == "ep1_cam_external.mp4"
 
 
+def test_episode_writer_refuses_to_truncate_existing_episode(samples_root, filled_profile):
+    h5_path = make_episode(samples_root, "sess1", "ep1", profile=filled_profile)
+    before = h5_path.read_bytes()
+    with pytest.raises(FileExistsError):
+        EpisodeWriter(samples_root, "sess1", "ep1", trial_id="trial-1", lab_id="lab_test",
+                      profile=filled_profile)
+    assert h5_path.read_bytes() == before
+
+
+def test_control_mode_is_stored_once_in_episode_header(samples_root, filled_profile):
+    import h5py
+
+    writer = EpisodeWriter(samples_root, "sess1", "ep1", trial_id="trial-1", lab_id="lab_test",
+                           profile=filled_profile)
+    writer.append_command(timestamp=0.0, target=[0.0] * 7, control_mode="joint_position")
+    writer.append_command(timestamp=0.01, target=[0.1] * 6 + [1], control_mode="joint_position")
+    writer.close()
+
+    with h5py.File(writer.paths.h5, "r") as f:
+        assert f.attrs["control_mode"] == "joint_position"
+        assert set(f["actions"].keys()) == {"timestamp", "joint_position", "gripper_binary"}
+
+
+def test_proprioception_signals_are_separate_robot_state_datasets(samples_root, filled_profile):
+    import h5py
+
+    writer = EpisodeWriter(samples_root, "sess1", "ep1", trial_id="trial-1", lab_id="lab_test",
+                           profile=filled_profile)
+    writer.append_proprioception(
+        timestamp=0.0,
+        joint_position=[1, 2],
+        joint_velocity=[3, 4],
+        ee_pose=[5, 6, 7],
+        ee_state=[8],
+        provenance={"joint_position": "measured", "joint_velocity": "estimated",
+                    "ee_pose": "measured", "ee_state": "measured"},
+    )
+    writer.close()
+
+    with h5py.File(writer.paths.h5, "r") as f:
+        states = f["observations/robot_states"]
+        assert set(states.keys()) == {"timestamp", "joint_position", "joint_velocity", "ee_pose", "ee_state"}
+        assert states["joint_position"].shape == (1, 2)
+        assert states["joint_velocity"].shape == (1, 2)
+        assert states["ee_pose"].shape == (1, 3)
+        assert states["joint_velocity"].attrs["provenance"] == "estimated"
+        assert "state" not in states
+
+
+def test_flat_action_vector_is_split_into_arm_and_gripper_datasets(samples_root, filled_profile):
+    import dataclasses
+    import h5py
+
+    arm_joints = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
+    profile = dataclasses.replace(
+        filled_profile,
+        manipulator={**filled_profile.manipulator, "dof": 5, "joint_names": arm_joints},
+        action_joint_names=arm_joints + ["gripper"],
+        action_space=["joint_position", "gripper_position"],
+    )
+    writer = EpisodeWriter(samples_root, "sess1", "ep1", trial_id="trial-1", lab_id="lab_test",
+                           profile=profile)
+    writer.append_command(timestamp=0.0, target=[1, 2, 3, 4, 5, 6], control_mode="joint_position")
+    writer.close()
+
+    with h5py.File(writer.paths.h5, "r") as f:
+        assert f["actions/joint_position"].shape == (1, 5)
+        assert f["actions/joint_position"][0].tolist() == [1, 2, 3, 4, 5]
+        assert f["actions/gripper_position"][0].tolist() == [6]
+
+
+@pytest.mark.parametrize(
+    ("action_space", "orientation", "target", "expected"),
+    [
+        (["joint_velocity", "gripper_velocity"], None, list(range(7)),
+         {"joint_velocity": (5, [0, 1, 2, 3, 4]), "gripper_velocity": (2, [5, 6])}),
+        (["joint_position", "gripper_binary"], None, [0, 1, 2, 3, 4, 1],
+         {"joint_position": (5, [0, 1, 2, 3, 4]), "gripper_binary": (1, [1])}),
+        (["joint_binary", "gripper_binary"], None, [0, 1, 0, 1, 0, 1],
+         {"joint_binary": (5, [0, 1, 0, 1, 0]), "gripper_binary": (1, [1])}),
+        (["cartesian_velocity", "gripper_velocity"], None, list(range(8)),
+         {"cartesian_velocity": (6, [0, 1, 2, 3, 4, 5]), "gripper_velocity": (2, [6, 7])}),
+        (["cartesian_position", "gripper_position"], "quat", list(range(9)),
+         {"cartesian_position": (7, [0, 1, 2, 3, 4, 5, 6]), "gripper_position": (2, [7, 8])}),
+        (["joint_position", "gripper_binary", "base_velocity"], None, [0, 1, 2, 3, 4, 1, 6, 7, 8],
+         {"joint_position": (5, [0, 1, 2, 3, 4]), "gripper_binary": (1, [1]), "base_velocity": (3, [6, 7, 8])}),
+    ],
+)
+def test_action_space_types_split_into_named_datasets(
+    samples_root, filled_profile, action_space, orientation, target, expected
+):
+    import dataclasses
+    import h5py
+
+    arm_joints = ["shoulder_pan", "shoulder_lift", "elbow_flex", "wrist_flex", "wrist_roll"]
+    profile = dataclasses.replace(
+        filled_profile,
+        manipulator={**filled_profile.manipulator, "dof": 5, "joint_names": arm_joints},
+        action_joint_names=arm_joints,
+        end_effector={**filled_profile.end_effector, "actuated_dof": 2},
+        action_space=action_space,
+        orientation_representation=orientation,
+    )
+    writer = EpisodeWriter(samples_root, "sess1", "ep1", trial_id="trial-1", lab_id="lab_test",
+                           profile=profile)
+    writer.append_command(timestamp=0.0, target=target, control_mode="test_mode")
+    writer.close()
+
+    with h5py.File(writer.paths.h5, "r") as f:
+        for name, (width, values) in expected.items():
+            assert f[f"actions/{name}"].shape == (1, width)
+            assert f[f"actions/{name}"][0].tolist() == values
+
+
+def test_binary_action_values_must_be_zero_or_one(samples_root, filled_profile):
+    import dataclasses
+
+    arm_joints = ["j1", "j2", "j3", "j4", "j5"]
+    profile = dataclasses.replace(
+        filled_profile,
+        manipulator={**filled_profile.manipulator, "dof": 5, "joint_names": arm_joints},
+        action_joint_names=arm_joints,
+        action_space=["joint_binary", "gripper_binary"],
+    )
+    writer = EpisodeWriter(samples_root, "sess1", "ep1", trial_id="trial-1", lab_id="lab_test",
+                           profile=profile)
+    try:
+        with pytest.raises(ValueError, match=r"binary \(0 or 1\)"):
+            writer.append_command(timestamp=0.0, target=[0, 1, 0, 1, 2, 1], control_mode="joint_binary")
+    finally:
+        writer.close()
+
+
+def test_control_mode_cannot_change_during_episode(samples_root, filled_profile):
+    writer = EpisodeWriter(samples_root, "sess1", "ep1", trial_id="trial-1", lab_id="lab_test",
+                           profile=filled_profile)
+    try:
+        writer.append_command(timestamp=0.0, target=[0.0] * 7, control_mode="joint_position")
+        with pytest.raises(ValueError, match="changed during episode"):
+            writer.append_command(timestamp=0.01, target=[0.0] * 7, control_mode="cartesian_position")
+    finally:
+        writer.close()
+
+
+@pytest.mark.parametrize("camera_name", ["../escape", "nested/cam", r"nested\\cam", ".."])
+def test_attach_video_rejects_unsafe_camera_names_before_copy(
+    samples_root, filled_profile, tmp_path, camera_name
+):
+    source = tmp_path / "source.mp4"
+    source.write_bytes(b"video")
+    writer = EpisodeWriter(samples_root, "sess1", "ep1", trial_id="trial-1", lab_id="lab_test",
+                           profile=filled_profile)
+    try:
+        with pytest.raises(ValueError, match="Invalid camera name"):
+            writer.attach_video(camera_name, source)
+        assert source.read_bytes() == b"video"
+        assert not (tmp_path / "escape.mp4").exists()
+    finally:
+        writer.close()
+
+
 def test_episode_keeps_profile_snapshot_after_profile_edited(samples_root, filled_profile):
     h5_path = make_episode(samples_root, "sess1", "ep1", profile=filled_profile)
     header_before = read_header(h5_path)
@@ -326,7 +487,9 @@ def test_form_has_action_space_card(samples_root):
     from fastapi.testclient import TestClient
     from datahive.interface.app import create_app
     js = TestClient(create_app(samples_root)).get("/app.js").text
-    for marker in ('"Action space"', "actionChipsHtml", "baseActionField", 'fd.getAll("action_space")'):
+    for marker in ('"Action space"', "actionChipsHtml", "baseActionField", 'fd.getAll("action_space")',
+                   'joint_binary: "Binary command per joint (0 or 1)"',
+                   '["joint_position", "joint_velocity", "joint_binary"].some'):
         assert marker in js
 
 
@@ -357,7 +520,7 @@ def test_action_joint_names_are_optional_saved_and_snapshotted(samples_root, fil
     assert filled_profile.to_dict()["action_joint_names"] == [f"j{i}" for i in range(6)]
 
 
-def test_action_joint_names_must_match_the_command_width(samples_root, filled_profile):
+def test_action_dataset_width_must_match_the_joint_names(samples_root, filled_profile):
     import h5py
     from datahive.errors import ValidationError
     from datahive.validate import validate_episode
@@ -365,14 +528,16 @@ def test_action_joint_names_must_match_the_command_width(samples_root, filled_pr
     h5 = make_episode(samples_root, "s", "ep1", trial_id="t1", profile=filled_profile)
     annotate_episode(samples_root, "ep1", {"attachment_id": "valve_ball", "outcome": "success", "strategy": "prehensile",
                                            "operator_name": "Op", "annotator_name": "Ann"}, validate_after=False)
-    import json
     with h5py.File(h5, "r+") as f:
-        f.attrs["action_joint_names"] = json.dumps(["a", "b", "c"])                    # 3 names, 6 values per step
+        original = f["actions/joint_position"][:]
+        del f["actions/joint_position"]
+        f["actions"].create_dataset("joint_position", data=original[:, :3])
     with pytest.raises(ValidationError) as exc:
         validate_episode(samples_root, "ep1", update_index=False)
-    assert "3 action joint names" in "\n".join(exc.value.problems)
+    assert "/actions/joint_position has 3 value(s) per step; expected 6" in "\n".join(exc.value.problems)
     with h5py.File(h5, "r+") as f:
-        f.attrs["action_joint_names"] = json.dumps([f"j{i}" for i in range(6)])
+        del f["actions/joint_position"]
+        f["actions"].create_dataset("joint_position", data=original)
     assert validate_episode(samples_root, "ep1", update_index=False) == []
 
 
@@ -527,7 +692,7 @@ def test_end_effector_form_has_an_other_option_with_a_description_field(samples_
 
 def test_joint_names_and_action_joint_names_are_required_with_a_joint_action():
     from datahive.profile import incompleteness_problems
-    for action in ("joint_position", "joint_velocity"):
+    for action in ("joint_position", "joint_velocity", "joint_binary"):
         data = _complete(action_space=[action, "gripper_binary"], manipulator={"joint_names": []}, action_joint_names=[])
         text = "\n".join(incompleteness_problems(data))
         assert "robot_state_joint_names" in text and "action_joint_names are required" in text

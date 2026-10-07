@@ -79,8 +79,9 @@ Notes:
   `joint_position` width must equal the profile's joint count.
 - **`provenance`** is keyed by field: `measured` (from a sensor) or `estimated` (interpolated,
   filtered, numerically differentiated).
-- **`target`** is the action in `action_space` order; joint actions must be as wide as
-  `action_joint_names`.
+- **`target`** may be a flat vector in `action_space` order or a mapping from action names to
+  values. `EpisodeWriter` stores each action as a named dataset; joint widths follow the arm
+  joint names, and gripper widths follow `end_effector.actuated_dof`.
 - **Videos**: `attach_video(camera_name, path, move=False)` copies (or moves) the file to
   `<episode_id>_cam_<camera_name>.mp4` and fills resolution/fps/encoding from the real file.
   All cameras must match in resolution and fps, and the clip must last as long as the episode

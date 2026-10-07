@@ -129,6 +129,10 @@ def fake_hub(config):
     api = FakeHfApi()
     hub = Hub(config, api=api)
     hub._fake_api = api
+    hub.download_text = lambda remote_path: (
+        api.uploaded_files[remote_path].decode("utf-8")
+        if remote_path in api.uploaded_files else None
+    )
     return hub
 
 
@@ -160,7 +164,7 @@ def make_episode(
     n_joints: int = 6,
 ) -> Path:
     """Builds a fake, valid episode: .h5 header + streams + a stub .mp4."""
-    from datahive.episode import EpisodeWriter
+    from datahive.episode import EpisodeWriter, _action_widths
 
     edir = samples_root / session_id / "episodes"
     edir.mkdir(parents=True, exist_ok=True)
@@ -181,7 +185,13 @@ def make_episode(
             provenance={"joint_position": "measured", "joint_velocity": "measured",
                         "joint_torque_or_current": "measured", "ee_pose": "estimated", "ee_state": "measured"},
         )
-        writer.append_command(timestamp=float(t), target=np.random.randn(n_joints), control_mode="joint_position")
+        action = {
+            name: (np.random.randint(0, 2, width if width is not None else 3)
+                   if name in {"joint_binary", "gripper_binary"}
+                   else np.random.randn(width if width is not None else 3))
+            for name, width in _action_widths(writer.header).items()
+        }
+        writer.append_command(timestamp=float(t), target=action, control_mode="joint_position")
     if with_video:
         stub = samples_root / f"_stub_{episode_id}.mp4"
         write_test_video(stub, seconds=(n_points - 1) / rate_hz)

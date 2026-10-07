@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from datahive import ops, runner
 from datahive.collect import CollectError, CollectRuntime
 from datahive.attachments import load_registry
-from datahive.episode import episode_dataset_info, episode_stats, read_header, read_trajectory
+from datahive.episode import _split_action_target, episode_dataset_info, episode_stats, read_header, read_trajectory
 from datahive.errors import DatahiveError
 from datahive.index import Index
 from datahive.paths import resolve_episode_paths, trials_csv_path
@@ -407,7 +407,7 @@ def build_router(samples_root: Path) -> APIRouter:
         }
 
     @router.get("/api/episodes/{episode_id}/trajectory")
-    def get_trajectory(episode_id: str, group: str = "proprioception", max_points: int = Query(2000, le=50000)):
+    def get_trajectory(episode_id: str, group: str = "observations/robot_states", max_points: int = Query(2000, le=50000)):
         try:
             paths = resolve_episode_paths(samples_root, episode_id)
         except DatahiveError as e:
@@ -437,8 +437,7 @@ def build_router(samples_root: Path) -> APIRouter:
 
     @router.get("/api/episodes/{episode_id}/cartesian-path")
     def get_cartesian_path(episode_id: str):
-        """End-effector x/y/z of the commanded cartesian_position action (first three
-        values of /commands/target). Empty when the action space is not cartesian_position."""
+        """End-effector x/y/z of the commanded cartesian_position action."""
         try:
             paths = resolve_episode_paths(samples_root, episode_id)
             header = read_header(paths.h5)
@@ -446,8 +445,13 @@ def build_router(samples_root: Path) -> APIRouter:
             raise HTTPException(404, str(e))
         if "cartesian_position" not in (header.action_space or []):
             return {"points": [], "n": 0}
-        data = read_trajectory(paths.h5, group="commands", fields=["target"])
-        target = data.get("target") or []
+        data = read_trajectory(paths.h5, group="actions", fields=["cartesian_position", "target"])
+        target = data.get("cartesian_position") or []
+        if not target and data.get("target"):
+            target = [
+                _split_action_target(header, row).get("cartesian_position", [])
+                for row in data["target"]
+            ]
         points = [[float(v) for v in row[:3]] for row in target if isinstance(row, list) and len(row) >= 3]
         return {"points": points, "n": len(points)}
 

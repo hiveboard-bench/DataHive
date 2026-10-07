@@ -15,7 +15,7 @@ from datahive.errors import DatahiveError, EpisodeNotFound, HubError
 from datahive.hf_limits import directory_problems
 from datahive.hub import Hub, remote_paths, remote_setup_jpg_path, remote_trials_csv_path
 from datahive.index import EpisodeRecord, Index
-from datahive.paths import resolve_episode_paths, trials_csv_path
+from datahive.paths import profile_path, resolve_episode_paths, trials_csv_path
 from datahive.trials import get_row, merge_rows, read_rows, set_fields, upsert_row
 
 
@@ -100,6 +100,10 @@ def upload_episode(
 
             if paths.setup_jpg.exists():
                 files[remote_setup_jpg_path(rec.session_id)] = paths.setup_jpg
+
+            profile = profile_path(samples_root)
+            if profile.is_file() and "robot_profile.yaml" not in hub_client.list_files():
+                files["robot_profile.yaml"] = profile
 
             hub_client.upload_episode(files, commit_message=f"Upload episode {episode_id}")
         except HubError as e:

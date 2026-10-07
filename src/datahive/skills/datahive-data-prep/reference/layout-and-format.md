@@ -52,7 +52,7 @@ JSON. Native scalars otherwise. Required for validation:
 - the rest is a snapshot of `robot_profile.yaml` (see `robot-profile.md`), plus
   `collection_mode` (`manual` | `automatic` | none) and `policy`
 
-### `/proprioception` — robot state, at least 100 Hz
+### `/observations/robot_states` — robot state, at least 100 Hz
 
 | dataset | shape per step | notes |
 |---|---|---|
@@ -66,17 +66,24 @@ JSON. Native scalars otherwise. Required for validation:
 Each dataset carries a `provenance` attr: `measured` (default) or `estimated` (interpolated,
 filtered, or computed rather than read from a sensor). Be honest about it.
 
-### `/commands` — what was sent to the robot
+### `/actions` — what was sent to the robot
 
-- `timestamp` (scalar), `target` (the action vector, in `action_space` order), `control_mode`
-  (UTF-8 bytes as `uint8` per step; `append_command` handles it)
-- If `action_space` contains `joint_position` or `joint_velocity`, `target`'s width must equal
-  `len(action_joint_names)`.
+- `timestamp` (scalar) and one dataset per action field in `action_space`, such as
+  `joint_position`, `cartesian_velocity`, or `gripper_position`.
+- `EpisodeWriter.append_command(target=...)` accepts a flat vector in `action_space` order and
+  splits it into named datasets. It also accepts a mapping from action names to values.
+- `control_mode` is stored once in the episode header because a recording uses one mode.
+- Joint datasets have one value per arm joint; gripper datasets use `end_effector.actuated_dof`.
+- `joint_binary` stores one 0/1 value per arm joint; `gripper_binary` stores one 0/1 open/close value.
+- `cartesian_position` stores XYZ followed by its orientation representation;
+  `cartesian_velocity` stores linear XYZ and angular XYZ.
+- A single base action uses the remaining vector values as its width; when passing a mapping,
+  its width can be any positive size because mobile base conventions differ.
 
 ### Consistency rules across the file
 
-- **Every dataset in both groups must have the same number of steps.** Log proprioception and
-  commands on the same tick.
+- **Every dataset in `/observations/robot_states` and `/actions` must have the same number of
+  steps.** Log robot states and actions on the same tick.
 - Values numeric and finite (no NaN/inf). No empty datasets.
 - Timestamps strictly increasing; median sample rate **>= 100 Hz** (99 Hz tolerated); no gap
   larger than 3x the median interval. `control_freq` in the profile should match the real rate
@@ -84,6 +91,9 @@ filtered, or computed rather than read from a sensor). Be honest about it.
 - At least 2 steps; duration 1-600 s.
 
 ## Videos (`.mp4`, one per profile camera)
+
+The video files remain beside the `.h5` file. Their filenames are also listed in
+`/observations/video_paths/<camera_name>` and in the root `cameras` header attribute.
 
 - Side length between **180 and 1280 px** (each side); e.g. 640x480 or 1280x720.
 - **All cameras identical** in resolution, fps and frame count (frame counts within 1).

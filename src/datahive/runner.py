@@ -370,7 +370,7 @@ def add_episode_files(
     subset is accepted and merged into what the episode already has; whatever is
     still missing marks the episode as incomplete. The header is rebuilt from the
     robot profile and the session, so an uploaded HDF5 only has to carry the
-    recorded data (/proprioception, /commands). The trial does not need to be
+    recorded data (/observations/robot_states, /actions). The trial does not need to be
     annotated first: that happens afterwards, in Annotate."""
     import shutil
 
@@ -378,7 +378,7 @@ def add_episode_files(
 
     from datahive.annotate import write_h5_annotation
     from datahive.consistency import missing_parts, probe_video
-    from datahive.episode import make_header, read_header, write_header
+    from datahive.episode import canonicalize_layout, make_header, read_header, write_header, write_video_paths
     from datahive.paths import episodes_dir, resolve_episode_paths
     from datahive.profile import load_profile
     from datahive.validate import validate_episode
@@ -409,8 +409,10 @@ def add_episode_files(
     if h5_src is not None:
         try:
             with h5py.File(h5_src, "r") as f:
-                if "proprioception" not in f or "timestamp" not in f["proprioception"]:
-                    raise DatahiveError("The HDF5 file has no /proprioception/timestamp dataset.")
+                from datahive.episode import group_path
+                state_path = group_path(f, "robot_states")
+                if state_path not in f or "timestamp" not in f[state_path]:
+                    raise DatahiveError("The HDF5 file has no /observations/robot_states/timestamp dataset.")
                 old_attrs = dict(f.attrs)
         except OSError as e:
             raise DatahiveError(f"The uploaded file is not a readable HDF5 file: {e}") from e
@@ -465,9 +467,11 @@ def add_episode_files(
         else:
             cam.pop("file", None)
     with h5py.File(h5_dest, "r+") as f:
+        canonicalize_layout(f)
         for key in list(f.attrs):
             del f.attrs[key]
         write_header(f, header)
+        write_video_paths(f, header.cameras)
     if row is not None and rebuild:
         write_h5_annotation(h5_dest, TrialAnnotation.from_csv_row(row))
 

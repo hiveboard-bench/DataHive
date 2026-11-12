@@ -1,6 +1,6 @@
-# Annotation (`trials.csv`)
+# Annotation (`trials_<session_id>.csv`)
 
-One row per trial in `samples/<session>/trials.csv`, also mirrored inside the `.h5` under
+One row per trial in `samples/<session>/trials_<session_id>.csv`, also mirrored inside the `.h5` under
 `episode_annotations/<annotator>/`. `datahive annotate` (terminal) and the Annotate tab in
 `datahive interface` both write it. The GUI opens straight on an episode and plays its video,
 which is how a human should judge what happened.
@@ -58,7 +58,7 @@ Always:
   should be `timeout`.
 - `timeout` on an episode far shorter than the timeout (< 50%) gives a warning.
 - `completion_time_s` cannot exceed the recording length + 1 s (except `timer` source).
-- The outcome stored inside the `.h5` must match `trials.csv`; re-save the annotation if edited.
+- The outcome stored inside the `.h5` must match `trials_<session_id>.csv`; re-save the annotation if edited.
 - Upload adds advisory warnings when >= 5 written notes are near-identical or all failures
   share one `failure_cause` (looks copy-pasted). They can be made blocking with
   `--strict-diversity`.

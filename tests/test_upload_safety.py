@@ -65,6 +65,7 @@ def test_upload_stamps_uploaded_at_and_stays_unchanged(samples_root, filled_prof
     assert ops.upload_episode(samples_root, "ep1", hub=fake_hub).uploaded
     row = get_row(resolve_episode_paths(samples_root, "ep1").trials_csv, "t-ep1")
     assert row["uploaded_at"].endswith("+00:00")
+    assert "s/trials_s.csv" in fake_hub._fake_api.uploaded_files
     again = ops.upload_episode(samples_root, "ep1", hub=fake_hub)
     assert not again.uploaded and "unchanged" in again.skipped_reason
 
@@ -87,7 +88,7 @@ def test_remote_trials_read_error_aborts_upload_without_replacing_csv(
     assert not result.uploaded
     assert "network unavailable" in result.error
     assert paths.trials_csv.read_bytes() == before
-    assert not any(call["path_in_repo"] == "s/trials.csv" for call in fake_hub._fake_api.upload_calls)
+    assert not any(call["path_in_repo"] in {"s/trials.csv", "s/trials_s.csv"} for call in fake_hub._fake_api.upload_calls)
 
 
 def test_directory_guard_blocks_upload_and_suggests_split(samples_root, filled_profile, fake_hub, monkeypatch):
@@ -138,3 +139,17 @@ def test_preflight_api(samples_root, filled_profile):
     client = TestClient(create_app(samples_root))
     body = client.post("/api/episodes/upload-preflight", json={"episode_ids": ["ep1"]}).json()
     assert body["n_episodes"] == 1 and body["ok"] is True
+
+
+def test_upload_preserves_legacy_remote_trials(samples_root, filled_profile, fake_hub):
+    import csv
+    import io
+
+    _ready(samples_root, filled_profile)
+    paths = resolve_episode_paths(samples_root, "ep1")
+    legacy = paths.trials_csv.read_text().replace("t-ep1", "remote-trial")
+    fake_hub._fake_api.uploaded_files["s/trials.csv"] = legacy.encode("utf-8")
+
+    assert ops.upload_episode(samples_root, "ep1", hub=fake_hub).uploaded
+    exported = fake_hub._fake_api.uploaded_files["s/trials_s.csv"].decode("utf-8")
+    assert {r["trial_id"] for r in csv.DictReader(io.StringIO(exported))} == {"t-ep1", "remote-trial"}

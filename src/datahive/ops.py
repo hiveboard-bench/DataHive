@@ -73,6 +73,8 @@ def upload_episode(
         try:
             local_rows = read_rows(paths.trials_csv)
             remote_text = hub_client.download_text(remote_trials_csv_path(rec.session_id))
+            if remote_text is None:
+                remote_text = hub_client.download_text(f"{rec.session_id}/trials.csv")
             if remote_text:
                 import csv
                 import io

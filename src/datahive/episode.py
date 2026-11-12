@@ -20,7 +20,7 @@ from typing import Any, Literal
 import h5py
 import numpy as np
 
-from datahive.paths import EpisodePaths, resolve_episode_paths
+from datahive.paths import EpisodePaths, resolve_episode_paths, trials_csv_path
 from datahive.profile import RobotProfile, load_profile, profile_snapshot
 from datahive.schema import EPISODE_SCHEMA_CURRENT, EpisodeHeader
 
@@ -409,7 +409,7 @@ class EpisodeWriter:
             episode_id=episode_id,
             session_dir=self.samples_root / session_id,
             h5=edir / f"{episode_id}.h5",
-            trials_csv=self.samples_root / session_id / "trials.csv",
+            trials_csv=trials_csv_path(self.samples_root, session_id),
             setup_jpg=self.samples_root / session_id / "setup.jpg",
         )
 

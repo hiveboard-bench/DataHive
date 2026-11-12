@@ -51,3 +51,16 @@ def test_merge_rows_local_wins():
     by_id = {r["trial_id"]: r for r in merged}
     assert by_id["t1"]["notes"] == "local"
     assert by_id["t2"]["notes"] == "remote-only"
+
+
+def test_session_csv_renames_legacy_file(tmp_path):
+    from datahive.paths import trials_csv_path
+
+    session = tmp_path / "lab_robot_20261112"
+    session.mkdir()
+    legacy = session / "trials.csv"
+    legacy.write_text("trial_id\n1\n")
+    target = trials_csv_path(tmp_path, session.name)
+    assert target.name == "trials_lab_robot_20261112.csv"
+    assert target.read_text() == "trial_id\n1\n"
+    assert not legacy.exists()

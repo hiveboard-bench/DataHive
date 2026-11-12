@@ -8,7 +8,7 @@ Everything lives under a single ``samples/`` directory:
         .datahive/index.db
         {session_id}/
             setup.jpg
-            trials.csv
+            trials_{session_id}.csv
             episodes/
                 {episode_id}.h5
                 {episode_id}_cam_external.mp4
@@ -57,8 +57,19 @@ def episodes_dir(samples_root: Path, session_id: str) -> Path:
     return session_dir(samples_root, session_id) / "episodes"
 
 
+def trials_csv_filename(session_id: str) -> str:
+    """Filename shared by CSV downloads and Hugging Face exports."""
+    return f"trials_{session_id}.csv"
+
+
 def trials_csv_path(samples_root: Path, session_id: str) -> Path:
-    return session_dir(samples_root, session_id) / "trials.csv"
+    """Resolve the session CSV, renaming legacy files when first accessed."""
+    directory = session_dir(samples_root, session_id)
+    target = directory / trials_csv_filename(session_id)
+    legacy = directory / "trials.csv"
+    if legacy.is_file() and not target.exists():
+        legacy.rename(target)
+    return target
 
 
 def setup_image_path(samples_root: Path, session_id: str) -> Path:

@@ -9,7 +9,7 @@ Everything below is enforced by `datahive check` / `datahive validate` (source o
 samples/
   robot_profile.yaml
   <session_id>/
-    trials.csv
+    trials_<session_id>.csv
     episodes/
       <episode_id>.h5
       <episode_id>_cam_<camera_name>.mp4
@@ -20,7 +20,7 @@ samples/
   testing day, or per batch.
 - `episode_id`: unique across all of `samples/`. Runner uses `<session_id>_t<trial_id>`
   (e.g. `mylab_franka_x_20260919_t7`). `trial_id` is the position in the trial plan
-  (`"1"`..`"65"`); it links the `.h5` header to its row in `trials.csv`.
+  (`"1"`..`"65"`); it links the `.h5` header to its row in `trials_<session_id>.csv`.
 - Videos: the file name must be exactly `<episode_id>_cam_<camera_name>.mp4`, where
   `<camera_name>` is a camera `name` from `robot_profile.yaml` (case and spelling identical),
   and the header's `cameras[].file` must hold that file name (relative, no directories).

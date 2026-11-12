@@ -14,7 +14,7 @@ from huggingface_hub.utils import EntryNotFoundError, HfHubHTTPError
 
 from datahive.config import Config
 from datahive.errors import HubError
-from datahive.paths import EpisodePaths
+from datahive.paths import EpisodePaths, trials_csv_filename
 from datahive.schema import EpisodeHeader
 
 REPO_TYPE = "dataset"
@@ -33,7 +33,7 @@ def remote_paths(header: EpisodeHeader, paths: EpisodePaths) -> dict[str, Path]:
 
 
 def remote_trials_csv_path(session_id: str) -> str:
-    return f"{session_id}/trials.csv"
+    return f"{session_id}/{trials_csv_filename(session_id)}"
 
 
 def remote_setup_jpg_path(session_id: str) -> str:

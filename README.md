@@ -53,7 +53,7 @@ while True:
     robot.finish(writer)                     # hands the episode over, waits for the annotation
 ```
 
-Trials are saved as rows of `samples/<session>/trials.csv`; all times are stored in UTC.
+Trials are saved as rows of `samples/<session_id>/trials_<session_id>.csv`; all times are stored in UTC.
 
 ## Example: a full robot integration
 

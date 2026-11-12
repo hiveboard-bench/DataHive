@@ -769,7 +769,8 @@ def test_trials_csv_only_exports_trials_with_valid_episodes(client, samples_root
     assert client.get(f"/api/runner/sessions/{sid}/trials.csv").status_code == 409     # annotated, not validated yet
     assert client.post(f"/api/episodes/{e1}/validate").json()["ok"] is True
     r = client.get(f"/api/runner/sessions/{sid}/trials.csv")
-    assert r.status_code == 200 and "attachment" in r.headers["content-disposition"]
+    assert r.status_code == 200
+    assert r.headers["content-disposition"] == f'attachment; filename="trials_{sid}.csv"'
     lines = r.text.strip().splitlines()
     assert lines[0].startswith("trial_id") and len(lines) == 2 and lines[1].startswith("1,")   # only the valid trial
     assert client.get(f"/api/runner/sessions/{sid}").json()["n_episodes_valid"] == 1

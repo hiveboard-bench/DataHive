@@ -16,7 +16,7 @@ from datahive.attachments import load_registry
 from datahive.episode import _split_action_target, episode_dataset_info, episode_stats, read_header, read_trajectory
 from datahive.errors import DatahiveError
 from datahive.index import Index
-from datahive.paths import resolve_episode_paths, trials_csv_path
+from datahive.paths import resolve_episode_paths, trials_csv_filename, trials_csv_path
 from datahive.profile import (
     derive_platform_id,
     SKELETON,
@@ -175,7 +175,7 @@ def build_router(samples_root: Path) -> APIRouter:
         session_ids = {r.session_id for r in records}
         if samples_root.exists():
             for p in samples_root.iterdir():
-                if p.is_dir() and not p.name.startswith(".") and ((p / "trials.csv").is_file() or (p / runner.SESSION_FILE).is_file()):
+                if p.is_dir() and not p.name.startswith(".") and ((p / trials_csv_filename(p.name)).is_file() or (p / "trials.csv").is_file() or (p / runner.SESSION_FILE).is_file()):
                     session_ids.add(p.name)
 
         def attachment_of(record):
@@ -679,7 +679,7 @@ def build_router(samples_root: Path) -> APIRouter:
         for row in rows:
             writer.writerow({c: row.get(c, "") for c in TRIAL_COLUMNS})
         return Response(out.getvalue(), media_type="text/csv",
-                        headers={"Content-Disposition": 'attachment; filename="trials.csv"'})
+                        headers={"Content-Disposition": f'attachment; filename="{trials_csv_filename(session_id)}"'})
 
     # ---- Human-in-the-loop collection ---------------------------------------------
 

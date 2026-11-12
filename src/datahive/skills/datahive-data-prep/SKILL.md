@@ -12,7 +12,7 @@ fasteners, peg insertion, breaker, button, lock, drawer, ...). A lab runs **5 tr
 of the 13 tasks (65 trials)** on its own robot and submits them.
 
 Each trial becomes one **episode**: one `.h5` file (robot state + commands + a snapshot of the
-robot profile), one `.mp4` per camera, and one annotation row in `trials.csv`. Everything lives
+robot profile), one `.mp4` per camera, and one annotation row in `trials_<session_id>.csv`. Everything lives
 under a single `samples/` directory until the user uploads.
 
 Your job with this skill: get the user's data into that shape so that `datahive validate`
@@ -46,7 +46,7 @@ samples/
   robot_profile.yaml                       # once per rig
   attachments.yaml                         # optional override of the 13 tasks
   <session_id>/                            # one testing day / batch
-    trials.csv                             # one annotation row per trial (annotate writes it)
+    trials_<session_id>.csv                             # one annotation row per trial (annotate writes it)
     session.json                           # Runner sessions only; not needed for imported data
     episodes/
       <episode_id>.h5
@@ -112,7 +112,7 @@ Read the one you need, not all of them.
 - `reference/layout-and-format.md` — folder layout, file naming, HDF5 groups and datasets,
   frequency / duration / video limits, and how to convert an existing dataset.
 - `reference/robot-profile.md` — every profile field, legal values, and the questions to ask.
-- `reference/annotation.md` — `trials.csv` columns, outcome and failure taxonomy, cross-field
+- `reference/annotation.md` — `trials_<session_id>.csv` columns, outcome and failure taxonomy, cross-field
   rules, the 13 tasks with their timeouts.
 - `reference/troubleshooting.md` — each `check` / `validate` message, its cause and fix, plus
   mistakes that pass silently.

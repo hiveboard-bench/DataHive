@@ -33,9 +33,9 @@ and annotation rules.
 | `lab_id is empty or still 'your_lab_id'` | Run `datahive init` with the real lab id, then re-record; the id is stamped at creation. |
 | `Unsupported episode schema` | Upgrade `datahive-tools`. |
 | `operator_name / annotator_name is required` | Ask the user; annotate again. |
-| `No annotation row found in trials.csv for trial_id 'N'` | Annotate the episode. If the row exists, the `.h5` header `trial_id` differs from the CSV `trial_id`. |
+| `No annotation row found in trials_<session_id>.csv for trial_id 'N'` | Annotate the episode. If the row exists, the `.h5` header `trial_id` differs from the CSV `trial_id`. |
 | `Annotation for trial ... is invalid: ...` | See cross-field rules in `annotation.md`. |
-| `Annotation stored in the .h5 disagrees with trials.csv` | trials.csv was hand-edited. Save the annotation again. |
+| `Annotation stored in the .h5 disagrees with trials_<session_id>.csv` | trials_<session_id>.csv was hand-edited. Save the annotation again. |
 | `/group/name is empty` / `not numeric` / `contains NaN` | Sensor dropout or bad conversion. Fix the source; do not zero-fill. |
 | `Arrays do not share the same number of steps` | Proprioception and commands logged on different ticks, or one dataset appended conditionally. |
 | `joint_position has N DOF but the header lists M joint names` | `manipulator.joint_names` wrong, or fewer/more values written. |

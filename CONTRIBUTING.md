@@ -208,7 +208,7 @@ src/datahive/
   check.py          `datahive check`: recording health check, no annotation needed
   validate.py       `datahive validate`: full checks, incl. profile and annotation
   consistency.py    the data rules shared by check and validate (rate, video, NaN, ...)
-  annotate.py       saving annotations (trials.csv and inside the .h5)
+  annotate.py       saving annotations (trials_<session_id>.csv and inside the .h5)
   runner.py         Runner sessions, trial plans and manual episode uploads
   collect.py        automatic collection: server state machine and CollectClient
   ops.py, hub.py    upload, sync and delete against the Hugging Face Hub

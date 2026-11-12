@@ -890,7 +890,7 @@ function rnReviewHtml() {
     <div class="rn-toolbar">
       <button type="button" id="rnToPlan">&larr; Back to plan</button>
       <span class="rn-spacer"></span>
-      ${s.n_episodes_valid ? `<a href="/api/runner/sessions/${encodeURIComponent(s.session_id)}/trials.csv" class="rn-link"><button type="button">Download trials.csv (${s.n_episodes_valid} valid)</button></a>` : `<span class="rn-muted" style="font-size:0.85rem">trials.csv can be downloaded once an episode is valid</span>`}
+      ${s.n_episodes_valid ? `<a href="/api/runner/sessions/${encodeURIComponent(s.session_id)}/trials.csv" class="rn-link"><button type="button">Download trials_${escapeHtml(s.session_id)}.csv (${s.n_episodes_valid} valid)</button></a>` : `<span class="rn-muted" style="font-size:0.85rem">The trials CSV can be downloaded once an episode is valid</span>`}
       
     </div>
   </div>`;
@@ -901,7 +901,7 @@ function rnGlobalReviewHtml() {
     <tr><td><code>${escapeHtml(s.session_id)}</code></td><td>${s.date}</td><td>${escapeHtml(s.operator_name)}</td>
     <td>${escapeHtml(humanize(s.mode || "manual"))}</td><td>${s.n_recorded}/${s.n_planned}</td><td>${s.n_success}</td>
     <td>${s.n_episodes_valid || 0}</td>
-    <td class="rn-right"><div class="rn-row-actions"><button type="button" class="rn-mini" data-open="${escapeHtml(s.session_id)}">Open</button>${s.n_episodes_valid ? `<a href="/api/runner/sessions/${encodeURIComponent(s.session_id)}/trials.csv" class="rn-link"><button type="button" class="rn-mini">trials.csv</button></a>` : ""}</div></td></tr>`).join("");
+    <td class="rn-right"><div class="rn-row-actions"><button type="button" class="rn-mini" data-open="${escapeHtml(s.session_id)}">Open</button>${s.n_episodes_valid ? `<a href="/api/runner/sessions/${encodeURIComponent(s.session_id)}/trials.csv" class="rn-link"><button type="button" class="rn-mini">trials_${escapeHtml(s.session_id)}.csv</button></a>` : ""}</div></td></tr>`).join("");
   return `
   <div class="view-inner rn-wide">
     <div class="rn-head"><p class="eyebrow">Runner</p><h2>Review</h2>

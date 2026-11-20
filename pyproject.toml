@@ -36,7 +36,14 @@ dependencies = [
 
 [project.optional-dependencies]
 video = ["opencv-python-headless>=4.8"]
-dev = ["pytest>=8.0", "httpx>=0.27", "opencv-python-headless>=4.8"]
+converter = ["pyarrow>=14.0", "imageio-ffmpeg>=0.4.9"]
+dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
+    "opencv-python-headless>=4.8",
+    "pyarrow>=14.0",
+    "imageio-ffmpeg>=0.4.9",
+]
 
 [project.urls]
 Homepage = "https://github.com/hiveboard-bench/DataHive"
@@ -49,4 +56,4 @@ datahive = "datahive.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"datahive" = ["attachments.yaml", "interface/static/*", "interface/static/tasks/*", "skills/*/SKILL.md", "skills/*/reference/*.md"]
+"datahive" = ["attachments.yaml", "interface/static/*", "interface/static/tasks/*", "skills/*/SKILL.md", "skills/*/reference/*.md", "converter/profiles/*.yaml", "converter/*.md"]

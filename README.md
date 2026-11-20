@@ -10,7 +10,8 @@ private Hugging Face dataset repo.
 
 ```
 pip install datahive-tools
-pip install "datahive-tools[video]"   # optional: OpenCV, so videos are actually checked
+pip install "datahive-tools[video]"       # optional: OpenCV, so videos are actually checked
+pip install "datahive-tools[converter]"   # optional: convert LeRobot v3 datasets
 ```
 
 Requires Python 3.10 or newer. This installs the `datahive` command.
@@ -62,6 +63,26 @@ with a Franka Research 3: a ready-to-run Docker container (ROS 1 Noetic, libfran
 joystick teleop) that implements the robot side of both Manual and Automatic collection above.
 Use it as a reference for wiring up `CollectClient` / `EpisodeWriter` against a real robot loop.
 
+## Converting an existing dataset
+
+`datahive convert` (from `datahive-tools[converter]`) converts LeRobot Dataset v3.x
+recordings into the DataHive episode layout. It writes through `EpisodeWriter` and
+`annotate_episode`, so the output passes `datahive check` / `validate` unchanged.
+
+```
+datahive convert-profile samples --profile so101
+datahive convert-probe --source owner/dataset
+datahive convert-annotations-template --source owner/dataset --output labels.csv
+datahive convert samples --source owner/dataset \
+  --lab-id mylab --operator-name OPERATOR_NAME --annotator-name ANNOTATOR_NAME \
+  --attachment-id valve_ball --strategy prehensile --annotations labels.csv
+```
+
+Without labels, `--assume-success` records an explicit assumption (not a real label);
+fill in a sidecar CSV and re-run for real annotations. Source data below 100 Hz is
+linearly resampled to the target rate and marked `provenance: estimated`. The bundled
+SO-101 profile declares degree-valued arm joints and converts them to radians.
+
 ## AI assistant skills
 
 Two skills for AI coding assistants (e.g. Claude Code) live in `src/datahive/skills/`:
@@ -84,10 +105,11 @@ git clone https://github.com/hiveboard-bench/DataHive
 cd DataHive
 pip install -e ".[dev]"
 pytest
+datahive convert-selftest
 ```
 
 All tests run with no real network access and no real Hugging Face
-credentials.
+credentials. The `dev` extra includes the converter dependencies.
 
 ## Credits & Acknowledgments
 

@@ -3,10 +3,11 @@ functions, formats output. No business logic lives here."""
 
 from __future__ import annotations
 
+import argparse
 import json as jsonlib
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import List, Optional
 
 import typer
 
@@ -544,6 +545,154 @@ def install_skill(
         typer.echo(f"Skipped {p} (already exists; pass --force to replace)")
     if skipped and not installed:
         raise typer.Exit(2)
+
+
+def _run_converter(command, namespace) -> None:
+    """Run a converter command, reporting its errors like the CLI does."""
+    from datahive.converter.annotations import AnnotationError
+    from datahive.converter.common import ConversionError
+    from datahive.errors import DatahiveError
+
+    try:
+        code = command(namespace)
+    except (ConversionError, AnnotationError) as err:
+        typer.echo(f"error: {err}", err=True)
+        raise typer.Exit(2)
+    except DatahiveError as err:
+        typer.echo(str(err), err=True)
+        raise typer.Exit(1)
+    raise typer.Exit(code)
+
+
+@app.command("convert")
+def convert_cmd(
+    samples: Path = typer.Argument(..., metavar="SAMPLES", help="Destination samples/ directory"),
+    source: str = typer.Option(..., "--source", help="Local dataset path or Hugging Face repo id"),
+    lab_id: str = typer.Option(..., "--lab-id", help="Registered laboratory id"),
+    operator_name: str = typer.Option(..., "--operator-name", help="Who ran the trials"),
+    annotator_name: str = typer.Option(..., "--annotator-name", help="Who labelled the episodes"),
+    attachment_id: str = typer.Option(..., "--attachment-id", help="HiveBoard attachment id, e.g. valve_ball"),
+    strategy: str = typer.Option(..., "--strategy", help="prehensile | non_prehensile"),
+    cache_dir: Path = typer.Option(Path(".cache/datasets"), "--cache-dir", help="Hugging Face download cache"),
+    annotations: Optional[Path] = typer.Option(None, "--annotations", help="Sidecar annotation CSV"),
+    assume_success: bool = typer.Option(False, "--assume-success", help="Record an explicit success assumption"),
+    stage_reached: Optional[int] = typer.Option(None, "--stage-reached", help="Final stage for composed tasks"),
+    profile: str = typer.Option("so101", "--profile", help="Bundled profile name or path"),
+    camera_map: Optional[List[str]] = typer.Option(None, "--camera-map", metavar="NAME=SOURCE_KEY"),
+    start_index: int = typer.Option(0, "--start-index"),
+    limit: Optional[int] = typer.Option(None, "--limit"),
+    resample_hz: float = typer.Option(100.0, "--resample-hz"),
+    source_joint_units: Optional[str] = typer.Option(
+        None, "--source-joint-units", help="radians | degrees (default: profile)"
+    ),
+    allow_low_rate: bool = typer.Option(False, "--allow-low-rate"),
+    video_mode: str = typer.Option("transcode", "--video-mode", help="transcode | copy"),
+    video_crf: int = typer.Option(19, "--video-crf"),
+    video_preset: str = typer.Option("medium", "--video-preset"),
+    session_id: Optional[str] = typer.Option(None, "--session-id"),
+    collection_mode: str = typer.Option("manual", "--collection-mode"),
+    overwrite: bool = typer.Option(False, "--overwrite"),
+    dry_run: bool = typer.Option(False, "--dry-run"),
+    no_validate: bool = typer.Option(False, "--no-validate"),
+    keep_invalid: bool = typer.Option(False, "--keep-invalid"),
+    report: Optional[Path] = typer.Option(None, "--report"),
+):
+    """Convert LeRobot Dataset v3.x episodes into a samples/ root."""
+    from datahive.converter.cli import cmd_convert
+
+    if video_mode not in ("transcode", "copy"):
+        typer.echo("error: --video-mode must be transcode or copy", err=True)
+        raise typer.Exit(2)
+    if source_joint_units not in (None, "radians", "degrees"):
+        typer.echo("error: --source-joint-units must be radians or degrees", err=True)
+        raise typer.Exit(2)
+    _run_converter(
+        cmd_convert,
+        argparse.Namespace(
+            samples=samples, source=source, lab_id=lab_id,
+            operator_name=operator_name, annotator_name=annotator_name,
+            attachment_id=attachment_id, strategy=strategy,
+            cache_dir=cache_dir, annotations=annotations,
+            assume_success=assume_success, stage_reached=stage_reached,
+            profile=profile, camera_map=camera_map or [],
+            start_index=start_index, limit=limit, resample_hz=resample_hz,
+            source_joint_units=source_joint_units,
+            allow_low_rate=allow_low_rate, video_mode=video_mode,
+            video_crf=video_crf, video_preset=video_preset,
+            session_id=session_id, collection_mode=collection_mode,
+            overwrite=overwrite, dry_run=dry_run, no_validate=no_validate,
+            keep_invalid=keep_invalid, report=report,
+        ),
+    )
+
+
+@app.command("convert-profile")
+def convert_profile_cmd(
+    samples: Path = typer.Argument(..., metavar="SAMPLES", help="Destination samples/ directory"),
+    profile: str = typer.Option("so101", "--profile", help="Bundled profile name or path"),
+    policy: Optional[str] = typer.Option(None, "--policy"),
+    control_freq: Optional[float] = typer.Option(None, "--control-freq"),
+    force: bool = typer.Option(False, "--force"),
+):
+    """Write a bundled converter profile into a samples/ root."""
+    from datahive.converter.cli import cmd_profile
+
+    _run_converter(
+        cmd_profile,
+        argparse.Namespace(samples=samples, profile=profile, policy=policy,
+                           control_freq=control_freq, force=force),
+    )
+
+
+@app.command("convert-probe")
+def convert_probe_cmd(
+    source: str = typer.Option(..., "--source", help="Local dataset path or Hugging Face repo id"),
+    cache_dir: Path = typer.Option(Path(".cache/datasets"), "--cache-dir"),
+    metadata_only: bool = typer.Option(False, "--metadata-only"),
+    camera_map: Optional[List[str]] = typer.Option(None, "--camera-map", metavar="NAME=SOURCE_KEY"),
+    json: bool = typer.Option(False, "--json"),
+):
+    """Print what the converter's source adapter sees."""
+    from datahive.converter.cli import cmd_probe
+
+    _run_converter(
+        cmd_probe,
+        argparse.Namespace(source=source, cache_dir=cache_dir,
+                           metadata_only=metadata_only, camera_map=camera_map or [],
+                           json=json),
+    )
+
+
+@app.command("convert-annotations-template")
+def convert_annotations_template_cmd(
+    source: str = typer.Option(..., "--source", help="Local dataset path or Hugging Face repo id"),
+    output: Path = typer.Option(..., "--output", help="CSV file to write"),
+    cache_dir: Path = typer.Option(Path(".cache/datasets"), "--cache-dir"),
+    start_index: int = typer.Option(0, "--start-index"),
+    limit: Optional[int] = typer.Option(None, "--limit"),
+    strategy: str = typer.Option("prehensile", "--strategy"),
+    stage_reached: Optional[int] = typer.Option(None, "--stage-reached"),
+    force: bool = typer.Option(False, "--force"),
+):
+    """Write a sidecar annotation CSV skeleton for the selected episodes."""
+    from datahive.converter.cli import cmd_annotations_template
+
+    _run_converter(
+        cmd_annotations_template,
+        argparse.Namespace(source=source, output=output, cache_dir=cache_dir,
+                           start_index=start_index, limit=limit, strategy=strategy,
+                           stage_reached=stage_reached, force=force),
+    )
+
+
+@app.command("convert-selftest")
+def convert_selftest_cmd(
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+):
+    """Run the converter's unit tests."""
+    from datahive.converter.cli import cmd_selftest
+
+    _run_converter(cmd_selftest, argparse.Namespace(verbose=verbose))
 
 
 @app.command("serve", hidden=True)

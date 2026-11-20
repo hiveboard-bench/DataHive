@@ -214,6 +214,7 @@ src/datahive/
   ops.py, hub.py    upload, sync and delete against the Hugging Face Hub
   attachments.yaml  the 13 HiveBoard tasks (ids, timeouts, stages)
   interface/        the local web app: api.py (FastAPI) and static/ (plain HTML, CSS, JS)
+  converter/        `datahive convert`: LeRobot v3 datasets -> datahive_episode_v1
   skills/           the AI assistant skills that `datahive install-skill` installs
 tests/              pytest suite (no network)
 ```

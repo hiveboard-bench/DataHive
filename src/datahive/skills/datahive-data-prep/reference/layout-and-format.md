@@ -107,7 +107,24 @@ The video files remain beside the `.h5` file. Their filenames are also listed in
 
 ## Converting existing data
 
-Write each episode through the library so header, names and profile snapshot are right:
+LeRobot Dataset **v3.x** can be converted in one step with `datahive convert` (install
+`datahive-tools[converter]`):
+
+```bash
+datahive convert-probe --source <path-or-repo>          # what the adapter sees
+datahive convert-annotations-template --source <path-or-repo> --output labels.csv
+datahive convert samples --source <path-or-repo> \
+  --lab-id <lab> --operator-name <who-ran> --annotator-name <who-labelled> \
+  --attachment-id valve_ball --strategy prehensile --annotations labels.csv
+```
+
+It resamples below-100 Hz sources up to the target rate (marking the arrays `estimated`),
+extracts one video per profile camera, writes through `EpisodeWriter`, and validates every
+episode it writes. It refuses to invent labels: pass `--annotations`, or `--assume-success`
+to record an explicit assumption that must be reviewed before submission.
+
+For any other source format, write each episode through the library so header, names and
+profile snapshot are right:
 
 ```python
 from pathlib import Path
@@ -135,6 +152,8 @@ Conversion checklist:
    100 Hz it cannot be submitted; interpolating up must be declared `estimated` and the user
    should know that is a judgement call.
 3. Units: joints in rad, rad/s, N*m; `ee_pose` position in metres. Convert, do not relabel.
+   The bundled SO-101 converter profile declares `source_joint_units: degrees` and converts arm
+   joints to radians; pass `--source-joint-units` when a profile does not declare it.
 4. Video: transcode to a matching resolution/fps across cameras and trim/pad so duration
    matches the state stream (`ffmpeg -i in.mp4 -vf scale=640:480 -r 30 -c:v libx264 out.mp4`).
 5. Task id: map to one of the 13 `attachment_id`s. Ask if unclear.

@@ -11,7 +11,7 @@ yourself from a file. Ask the user, or prepare the command and let them decide.
 ```bash
 datahive annotate <episode_id>                       # interactive prompts
 datahive annotate <episode_id> --non-interactive --outcome success --attachment-id valve_ball \
-  --strategy prehensile --operator-name "Ana" --annotator-name "Ana"
+  --strategy prehensile --operator-name "OPERATOR_NAME" --annotator-name "ANNOTATOR_NAME"
 ```
 
 ## Columns

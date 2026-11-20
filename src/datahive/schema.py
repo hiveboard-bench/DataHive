@@ -8,6 +8,8 @@ from typing import Any, Optional
 
 from pydantic import BaseModel, Field, model_validator
 
+from datahive.version import __version__
+
 try:
     from enum import StrEnum
 except ImportError:  # Python 3.10: enum.StrEnum arrived in 3.11
@@ -256,4 +258,4 @@ class EpisodeHeader(BaseModel):
 
     created_at: datetime
     schema_version: str = EPISODE_SCHEMA_LEGACY
-    datahive_version: str = "0.1.7"
+    datahive_version: str = __version__

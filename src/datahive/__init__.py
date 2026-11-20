@@ -11,6 +11,7 @@ from datahive.episode import EpisodeWriter, read_header, read_trajectory, resolv
 from datahive.errors import DatahiveError
 from datahive.profile import RobotProfile, load_profile, write_profile_skeleton
 from datahive.schema import EpisodeHeader, FailureCause, Outcome, Strategy, TrialAnnotation
+from datahive.version import __version__
 
 __all__ = [
     "EpisodeWriter",
@@ -27,5 +28,3 @@ __all__ = [
     "Strategy",
     "TrialAnnotation",
 ]
-
-__version__ = "0.1.8"

@@ -1,0 +1,83 @@
+# Robot profile for datasets converted from LeRobot v3.0 SO-101 recordings.
+#
+# Validated against victorvanhalst/hive_botao_100:
+#   robot_type so_follower, 25 fps source, two cameras at 640x480,
+#   action/state order: shoulder_pan, shoulder_lift, elbow_flex, wrist_flex,
+#   wrist_roll, gripper.
+#
+# DataHive's joint_position holds ARM joints only. The gripper is recorded as
+# ee_state (observation) and gripper_position (action), so the joint-name lists
+# below deliberately exclude the gripper.
+#
+# control_freq is the rate of the CONVERTED episode, not the source. Source
+# data below 100 Hz is linearly resampled up to this rate because
+# datahive_episode_v1 rejects proprioception below 100 Hz.
+#
+# LeRobot's SO-101 "*.pos" arm values are degrees. This converter-only key
+# tells `datahive convert` to convert the arm joints to radians; the written
+# profile and episode header then describe them as radians. Override per run
+# with --source-joint-units. The gripper column stays in percent-of-servo-range.
+source_joint_units: degrees
+
+policy: teleop_manual
+robot_name: so101_follower
+gripper_name: so101_gripper
+is_biarm: false
+uses_mobile_base: false
+control_freq: 100
+
+action_space:
+  - joint_position
+  - gripper_position
+
+action_joint_names:
+  - shoulder_pan
+  - shoulder_lift
+  - elbow_flex
+  - wrist_flex
+  - wrist_roll
+
+manipulator:
+  model: so101_follower
+  joint_names:
+    - shoulder_pan
+    - shoulder_lift
+    - elbow_flex
+    - wrist_flex
+    - wrist_roll
+
+end_effector:
+  type: gripper
+  actuated_dof: 1
+  command_modality: position
+
+low_level:
+  mode: stock
+
+control_mode: joint_position
+
+cameras:
+  - name: wrist
+    position: wrist-mounted
+    resolution: 640x480
+    fps: 25
+  - name: external
+    position: external
+    resolution: 640x480
+    fps: 25
+
+board_mounting: null
+hiveboard_version: null
+board_fabrication:
+  printer: null
+  material: null
+  print_settings: null
+  post_processing: null
+  calibration_notes: null
+
+# Arm joints are written in radians after conversion. The gripper column is a
+# percentage of the servo range and is written unchanged.
+units_and_frames:
+  joint_position: rad
+  ee_state: normalized_percent_of_servo_range
+  timestamp: monotonic_seconds

@@ -1,6 +1,6 @@
 ---
 name: datahive-data-prep
-description: Use when preparing robot manipulation data for DataHive / HiveBoard — deciding what to record and upload, laying files out under samples/, writing or debugging the robot profile, converting an existing dataset (HDF5, ROS bags, LeRobot, MP4s) into the datahive_episode_v1 format, running `datahive check` / `validate`, annotating trials, or fixing a validation error before upload.
+description: Use when preparing robot manipulation data for DataHive / HiveBoard — deciding what to record and upload, laying files out under samples/, writing or debugging the robot profile, converting a LeRobot Dataset v3.x dataset with `datahive convert` into the datahive_episode_v1 format, running `datahive check` / `validate`, annotating trials, or fixing a validation error before upload.
 ---
 
 # DataHive: getting data ready
@@ -98,9 +98,12 @@ give the user the URL, or just hand them the command.
    - **Recording with DataHive** (Runner manual/automatic mode, or `EpisodeWriter` in the user's
      own loop): the files come out correctly named. For automatic mode use the
      `datahive-auto-collect` skill.
-   - **Converting existing data**: write each episode with `EpisodeWriter` (recommended — it
-     snapshots the profile into the header for you) rather than hand-building HDF5. See
-     `reference/layout-and-format.md`, "Converting existing data".
+   - **Converting existing data**: for a LeRobot Dataset v3.x source, install
+     `datahive-tools[converter]` and use `datahive convert` (start with
+     `datahive convert-probe --source <path-or-repo>`). For any other format, write each
+     episode with `EpisodeWriter` (recommended — it snapshots the profile into the header for
+     you) rather than hand-building HDF5. See `reference/layout-and-format.md`, "Converting
+     existing data".
 3. Put files in `samples/<session_id>/episodes/`, then `datahive check` each episode.
 4. Annotate (`reference/annotation.md`), then `datahive validate`.
 5. Give the user the `datahive upload` (or `datahive sync`) command.
